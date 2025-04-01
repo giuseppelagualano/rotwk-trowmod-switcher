@@ -1,0 +1,1 @@
+python -m PyInstaller --onefile --noconsole --icon=src/assets/bg.jpg --collect-all customtkinter src/main.py

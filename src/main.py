@@ -1,8 +1,8 @@
 import customtkinter as ctk
 import logging
 import sys
-from tkinter import scrolledtext, PhotoImage
-from PIL import Image, ImageTk
+from tkinter import scrolledtext
+from PIL import Image
 
 from core.config import REGISTRY_PATHS_ROTWK, REPO_OWNER, REPO_NAME
 from core.mod_retriever import update_rotwk_with_latest_mod
@@ -59,12 +59,12 @@ ctk.set_default_color_theme("dark-blue")
 
 root = ctk.CTk()
 root.resizable(False, False)  # Disabilita il ridimensionamento della finestra
-root.geometry("800x600")
+root.geometry("1200x600")
 root.title("RoTWK Mod Updater")
 
 # Carica immagine di sfondo (assicurati di avere un'immagine adatta)
 try:
-    bg_image = ctk.CTkImage(light_image=Image.open('src/assets/bg.webp'), dark_image=Image.open('src/assets/bg.webp'), size=(800, 600))
+    bg_image = ctk.CTkImage(light_image=Image.open('src/assets/bg.jpg'), dark_image=Image.open('src/assets/bg.jpg'), size=(1200, 600))
     background_label = ctk.CTkLabel(root, image=bg_image, text="")
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
 except Exception as e:
