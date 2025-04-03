@@ -1,13 +1,12 @@
 import customtkinter as ctk
 import logging
-import sys
 from tkinter import scrolledtext
 from PIL import Image
 
 from core.config import REGISTRY_PATHS_ROTWK, REPO_OWNER, REPO_NAME
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
-from core.utils import resource_path
+from core.utils import is_admin, resource_path
 
 # --- Configuration ---
 
@@ -47,7 +46,7 @@ def on_update_click():
 
     if not rotwk_install_path:
         logger.critical("Could not find RoTWK installation path in the registry. Script cannot continue.")
-        sys.exit(1)
+        update_flag(False)
 
     if update_rotwk_with_latest_mod(repo_full_name=REPO_FULL_NAME, game_path=rotwk_install_path):
         update_flag(True)
@@ -83,8 +82,12 @@ logo_label.pack(pady=20)
 update_button = ctk.CTkButton(main_frame, text="Update to latest RoTWK Mod", font=("Arial", 24, "bold"), command=on_update_click)
 update_button.pack(pady=10)
 
-# Flag label inizialmente vuota
-flag_label = ctk.CTkLabel(main_frame, text="", font=("Arial", 15, "bold"))
+# Flag label
+if is_admin():
+    flag_label = ctk.CTkLabel(main_frame, text="", font=("Arial", 15, "bold"))
+else:
+    flag_label = ctk.CTkLabel(main_frame, text="ERROR! Please, run the software as admin.", font=("Arial", 15, "bold"),  text_color="red")
+
 flag_label.pack(pady=10)
 
 # Console di log
