@@ -7,6 +7,7 @@ from PIL import Image
 from core.config import REGISTRY_PATHS_ROTWK, REPO_OWNER, REPO_NAME
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
+from core.utils import resource_path
 
 # --- Configuration ---
 
@@ -64,7 +65,7 @@ root.title("RoTWK Mod Updater")
 
 # Carica immagine di sfondo (assicurati di avere un'immagine adatta)
 try:
-    bg_image = ctk.CTkImage(light_image=Image.open('src/assets/bg.jpg'), dark_image=Image.open('src/assets/bg.jpg'), size=(1200, 600))
+    bg_image = ctk.CTkImage(light_image=Image.open(resource_path('src/assets/bg.jpg')), dark_image=Image.open(resource_path('src/assets/bg.jpg')), size=(1200, 600))
     background_label = ctk.CTkLabel(root, image=bg_image, text="")
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
 except Exception as e:
