@@ -6,7 +6,7 @@ from PIL import Image
 from tkinter import filedialog
 
 # Assuming 'core' directory is structured correctly relative to this script
-from core.archiver import create_trowmod_ini_big_archive
+from core.archiver import create_trowmod_arts_big_archive, create_trowmod_ini_big_archive
 from core.config import * # Ensure constants like REPO_OWNER, TEXT_FONT etc. are defined here
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
@@ -118,21 +118,29 @@ def _run_remote_update_thread(repo_full_name, game_path):
         schedule_gui_update(set_buttons_state, 'normal') # Re-enable buttons
 
 
-def _run_local_update_thread(source_dir_path, output_dir_path, archive_name):
+def _run_local_update_thread(source_dir_path, output_dir_path):
     """Target function for the local update worker thread."""
     success = False
     try:
         # Log start (will be scheduled to GUI thread by the handler)
         logger.info(f"Starting local update thread from {source_dir_path}...")
         # --- Blocking Operation ---
-        success = create_trowmod_ini_big_archive(
-            source_dir_path=source_dir_path,
+
+        ini_success = create_trowmod_ini_big_archive(
+            source_dir_path=source_dir_path, # Use the determined content path
             output_dir_path=output_dir_path,
-            archive_name=archive_name
+            archive_name=DEFAULT_INI_ARCHIVE_NAME
+        )
+
+        arts_success = create_trowmod_arts_big_archive(
+            source_dir_path=source_dir_path, # Use the determined content path
+            output_dir_path=output_dir_path,
+            archive_name=DEFAULT_ARTS_ARCHIVE_NAME
         )
         # --- End Blocking Operation ---
-        if success:
+        if (ini_success and arts_success):
             logger.info("Local update thread finished successfully.")
+            success = True
         else:
             logger.error("Local update thread failed.")
     except Exception as e:
@@ -198,7 +206,7 @@ def on_local_update_click():
     # schedule_gui_update(flag_label.configure, text="Update running...", text_color="yellow")
 
     # Create and start the worker thread
-    thread = threading.Thread(target=_run_local_update_thread, args=(source_content_path, rotwk_path, DEFAULT_ARCHIVE_NAME), daemon=True)
+    thread = threading.Thread(target=_run_local_update_thread, args=(source_content_path, rotwk_path), daemon=True)
     thread.start()
 
 
