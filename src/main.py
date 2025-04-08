@@ -6,7 +6,7 @@ from PIL import Image
 from tkinter import filedialog
 
 # Assuming 'core' directory is structured correctly relative to this script
-from core.archiver import create_trowmod_arts_big_archive, create_trowmod_ini_big_archive
+from core.archiver import *
 from core.config import * # Ensure constants like REPO_OWNER, TEXT_FONT etc. are defined here
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
@@ -137,8 +137,15 @@ def _run_local_update_thread(source_dir_path, output_dir_path):
             output_dir_path=output_dir_path,
             archive_name=DEFAULT_ARTS_ARCHIVE_NAME
         )
+
+        itlang_success = create_trowmod_itlang_big_archive(
+            source_dir_path=source_dir_path, # Use the determined content path
+            output_dir_path=output_dir_path,
+            archive_name=DEFAULT_ITLANG_ARCHIVE_NAME
+        )
+        
         # --- End Blocking Operation ---
-        if (ini_success and arts_success):
+        if (ini_success and arts_success and itlang_success):
             logger.info("Local update thread finished successfully.")
             success = True
         else:

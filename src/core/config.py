@@ -5,6 +5,7 @@ REPO_OWNER = "SymoniusGit"
 REPO_NAME = "TROWMod"
 DEFAULT_INI_ARCHIVE_NAME = "!TROWMOD_INI.big"
 DEFAULT_ARTS_ARCHIVE_NAME = "!trowmod.big"
+DEFAULT_ITLANG_ARCHIVE_NAME = "Italian.big"
 
 # --- Registry Settings ---
 REGISTRY_PATHS_ROTWK = [

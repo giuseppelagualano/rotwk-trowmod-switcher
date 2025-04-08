@@ -5,8 +5,8 @@ import zipfile
 import tempfile
 import logging
 import os
-from core.config import DEFAULT_INI_ARCHIVE_NAME, DEFAULT_ARTS_ARCHIVE_NAME
-from core.archiver import create_trowmod_ini_big_archive, create_trowmod_arts_big_archive
+from core.config import DEFAULT_INI_ARCHIVE_NAME, DEFAULT_ARTS_ARCHIVE_NAME, DEFAULT_ITLANG_ARCHIVE_NAME
+from core.archiver import *
 
 # --- Logger Setup ---
 # Configure logging for informative output
@@ -175,6 +175,8 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
 
             # 7. Call the original archiving function with the path to the extracted source code
             if source_content_path:
+                success = False
+
                 logger.info("Proceeding to create the big archives...")
                 ini_success = create_trowmod_ini_big_archive(
                     source_dir_path=source_content_path, # Use the determined content path
@@ -188,11 +190,21 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
                     archive_name=DEFAULT_ARTS_ARCHIVE_NAME
                 )
 
-                if ini_success and arts_success:
+                itlang_success = create_trowmod_itlang_big_archive(
+                    source_dir_path=source_content_path, # Use the determined content path
+                    output_dir_path=game_path,
+                    archive_name=DEFAULT_ITLANG_ARCHIVE_NAME
+                )
+
+                if ini_success and arts_success and itlang_success:
                     logger.info("Archives creation reported success.")
+                    success = True
                 else:
                     logger.error("Archives creation reported failure.")
-                return (ini_success and arts_success)
+                    success = False
+
+                return success
+            
             else:
                 # Should not happen if logic above is correct, but handle defensively
                 logger.error("Failed to determine source content path for archiving.")
