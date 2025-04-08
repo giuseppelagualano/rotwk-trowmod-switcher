@@ -78,7 +78,7 @@ def update_flag(success):
     if success:
         flag_label.configure(text="Update completed!", text_color="green")
     else:
-        flag_label.configure(text="ERROR!!", text_color="red") # Kept original error text
+        flag_label.configure(text="ERROR!! Please, see the logs below!", text_color="red") # Kept original error text
 
 # --- Helper Function to Manage Button States (English Name) ---
 def set_buttons_state(new_state):
@@ -90,8 +90,8 @@ def set_buttons_state(new_state):
     remote_update_button.configure(state=new_state)
     local_update_button.configure(state=new_state)
     # Optionally disable browse buttons too, if desired
-    # browse_button_remote.configure(state=new_state)
-    # browse_button_local.configure(state=new_state)
+    browse_button_remote.configure(state=new_state)
+    browse_button_local.configure(state=new_state)
 
 
 # --- Worker Thread Target Functions (English Names) ---
@@ -179,18 +179,15 @@ def on_local_update_click():
     rotwk_path = rotwk_path_entry.get()
     # Use original check logic, schedule flag update on failure
     if not rotwk_path or rotwk_path == "NOT FOUND!": # Added check for placeholder text
-        logger.critical("Could not find RoTWK installation path. Script cannot continue.")
-        schedule_gui_update(update_flag, False)
+        logger.critical("Could not find RoTWK installation path. Update cannot continue.")
+        flag_label.configure(text="Error: RoTWK installation path cannot be empty!", text_color="red")
         return
 
     source_content_path = local_path_entry.get()
     # Use original check logic, schedule flag update on failure
     if not source_content_path.strip():
-        logger.warning("Local content path is empty. Update cannot proceed.")
-        # Use original feedback for empty path, but scheduled
-        schedule_gui_update(flag_label.configure, text="Error: Local path cannot be empty.", text_color="yellow")
-        # Ensure update_flag reflects failure state too
-        schedule_gui_update(update_flag, False)
+        logger.error("Local content path is empty. Update cannot proceed.")
+        flag_label.configure(text="Error: Local path cannot be empty!", text_color="red")
         return
 
     logger.info(f"Using local content path: {source_content_path}") # Original log
