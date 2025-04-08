@@ -43,6 +43,9 @@ def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, 
 
     archive_path = output_dir_path + archive_name
 
+    logger.info(f"Update asset.dat...")
+    shutil.copyfile(source_dir_path + "/arts/asset.dat", output_dir_path + "/asset.dat")
+
     try:
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
