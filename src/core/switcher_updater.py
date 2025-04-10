@@ -174,18 +174,9 @@ def trigger_update_restart(downloaded_exe_path):
         return False
 
     current_exe_path = sys.executable  # Path to the currently running .exe
-    script_dir = os.path.dirname(current_exe_path)
+    #script_dir = os.path.dirname(current_exe_path)
     batch_filename = os.path.join(tempfile.gettempdir(), f"updater_{__APP_NAME__}_{os.getpid()}.bat")
 
-    # Batch script content explanation:
-    # @echo off : Hide commands being run
-    # title Updater : Set window title (optional cosmetic)
-    # echo ... : Display messages to the user in the batch window
-    # timeout /t 3 /nobreak > nul : Wait 3 seconds without interruption (gives Python time to exit and release file lock). Output is hidden.
-    # del /Q /F "{current_exe_path}" : Delete the old executable quietly (/Q) and forcefully (/F). Might fail if still locked, but move should still work.
-    # move /Y "{downloaded_exe_path}" "{current_exe_path}" : Move the downloaded file, overwriting (/Y) the original path. This is the core replacement step.
-    # start "" "{current_exe_path}" : Launch the NEW executable now at the original path. The "" handles paths with spaces.
-    # del "%~f0" : Delete this batch script itself after execution. %~f0 expands to the full path of the batch script.
     batch_script_content = f"""@echo off
         title {__APP_NAME__} Updater - Do Not Close This Window
         echo.
@@ -194,11 +185,11 @@ def trigger_update_restart(downloaded_exe_path):
         timeout /t 3 /nobreak > nul
         echo.
         echo Replacing files...
+        echo Replaced "{current_exe_path}" with "{downloaded_exe_path}"
         del /Q /F "{current_exe_path}"
         move /Y "{downloaded_exe_path}" "{current_exe_path}"
         echo.
         echo Update applied. Starting the new version...
-        start "" "{current_exe_path}"
         echo.
         echo Cleaning up updater script...
         del "%~f0"
@@ -213,8 +204,8 @@ def trigger_update_restart(downloaded_exe_path):
         # DETACHED_PROCESS allows the script to continue running after this Python app exits.
         # CREATE_NEW_CONSOLE shows the batch script window (useful for debugging).
         # Use 0 (or CREATE_NO_WINDOW) instead of CREATE_NEW_CONSOLE if you want it hidden.
-        creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE
-        subprocess.Popen(['cmd.exe', '/c', batch_filename], creationflags=creation_flags)
+        #creation_flags = subprocess.DETACHED_PROCESS
+        subprocess.Popen([batch_filename], creationflags=subprocess.CREATE_NEW_CONSOLE, close_fds=True)
 
         logger.info("Update script launched. Exiting application to allow update.")
         # Exit the current Python application immediately
