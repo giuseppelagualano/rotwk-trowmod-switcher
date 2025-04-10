@@ -1,7 +1,7 @@
 # config.py
 
 __APP_NAME__ = "rotwk-trowmod-switcher"
-__APP_VERSION__ = "2.0.2"
+__APP_VERSION__ = "2.0.3"
 UPDATER_GITHUB_REPO = "giuseppelagualano/rotwk-mod-switcher"
 
 # --- Archive Settings ---
@@ -19,7 +19,7 @@ REGISTRY_PATHS_ROTWK = [
 
 # --- GUI Settings ---
 APP_TITLE = "LOTR: Rise of the Witch-king Archiver"
-INITIAL_WINDOW_SIZE = "800x600"
+INITIAL_WINDOW_SIZE = "1200x1200"
 
 # LORD OF THE RINGS THEMED COLORS
 TEXT_PRIMARY = "#b99767"

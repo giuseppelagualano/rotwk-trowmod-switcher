@@ -353,8 +353,9 @@ ctk.set_default_color_theme("dark-blue")
 
 root = ctk.CTk()
 root.resizable(False, False)
-root.geometry("1200x900")
-root.title("RoTWK Mod Updater")
+root.geometry(INITIAL_WINDOW_SIZE)
+root.iconbitmap(resource_path('src/assets/bg_ai_gen.ico'))
+root.title("RoTWK Mod Switcher")
 
 # Load background image (Original Code)
 try:
@@ -362,7 +363,7 @@ try:
     bg_image = ctk.CTkImage(
         light_image=Image.open(resource_path('src/assets/bg_ai_gen.jpeg')),
         dark_image=Image.open(resource_path('src/assets/bg_ai_gen.jpeg')),
-        size=(1200, 1000) # Original size
+        size=(1200, 1200) # Original size
     )
     background_label = ctk.CTkLabel(root, image=bg_image, text="")
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
@@ -374,7 +375,7 @@ except Exception as e:
 
 
 # Main frame for widgets (Original Code)
-main_frame = ctk.CTkFrame(root, corner_radius=10, width=700, height=500) # Original fixed size
+main_frame = ctk.CTkFrame(root, corner_radius=20) # Original fixed size
 main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER) # Original placement
 
 # Configure grid columns and rows inside main_frame (Original Code)
