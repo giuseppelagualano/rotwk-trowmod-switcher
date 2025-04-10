@@ -4,11 +4,15 @@ import shutil
 import tempfile
 from pyBIG import Archive
 
+from core.utils import remove_trailing_slashes
+
 logger = logging.getLogger(__name__)
 
 def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
 
-    archive_path = output_dir_path + archive_name
+    output_dir_path = remove_trailing_slashes(output_dir_path)
+    source_dir_path = remove_trailing_slashes(source_dir_path)
+    archive_path = output_dir_path + "/" + archive_name
 
     try:
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
@@ -41,7 +45,9 @@ def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, a
 
 def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
 
-    archive_path = output_dir_path + archive_name
+    output_dir_path = remove_trailing_slashes(output_dir_path)
+    source_dir_path = remove_trailing_slashes(source_dir_path)
+    archive_path = output_dir_path + "/" + archive_name
 
     logger.info(f"Update asset.dat...")
     shutil.copyfile(source_dir_path + "/arts/asset.dat", output_dir_path + "/asset.dat")
@@ -77,6 +83,8 @@ def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, 
     
 def create_trowmod_itlang_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
 
+    output_dir_path = remove_trailing_slashes(output_dir_path)
+    source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/lang/" + archive_name
 
     try:

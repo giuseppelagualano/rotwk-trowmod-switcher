@@ -48,3 +48,15 @@ def is_admin():
         # On Unix-like systems (Linux, macOS), you'd check for root (UID 0)
         # return os.geteuid() == 0 # Uncomment if you need root check on Unix
         return False # For this context, return False if not Windows
+
+def remove_trailing_slashes(path):
+  """
+  Removes all trailing slashes from a path.
+
+  Args:
+    path: The path string.
+
+  Returns:
+    The path string with all trailing slashes removed.
+  """
+  return path.rstrip(os.sep)
