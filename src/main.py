@@ -1,16 +1,20 @@
 import customtkinter as ctk
 import logging
 import threading  # Imported for multithreading
-from tkinter import scrolledtext
 from PIL import Image
-from tkinter import filedialog
+from tkinter import scrolledtext, filedialog, messagebox
+
+import sys # Needed for updater
+import os  # Needed for updater
 
 # Assuming 'core' directory is structured correctly relative to this script
 from core.archiver import *
 from core.config import * # Ensure constants like REPO_OWNER, TEXT_FONT etc. are defined here
+from core.config import __APP_VERSION__, __APP_NAME__
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
 from core.utils import is_admin, resource_path
+from core.switcher_updater import check_for_updates, download_update, trigger_update_restart
 
 # --- Configuration ---
 # Ensure REPO_OWNER and REPO_NAME are defined in core.config
@@ -19,6 +23,109 @@ REPO_FULL_NAME = f"{REPO_OWNER}/{REPO_NAME}"
 # Set up logging
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
 logger = logging.getLogger(__name__)
+
+# --- Auto-Updater Integration ---
+def update_progress_handler(downloaded_bytes, total_bytes, percent):
+    """ Placeholder for showing download progress in the GUI """
+    # In a real implementation, you'd update a progress bar widget
+    if total_bytes > 0:
+        print(f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)")
+    else:
+        print(f"Downloading update: {downloaded_bytes} bytes (total size unknown)")
+    # Make sure GUI updates happen safely (e.g., via schedule_gui_update)
+    # schedule_gui_update(my_progress_bar.set, percent / 100.0)
+
+def _perform_update_download_and_restart(url):
+    """
+    Handles the download and restart process in a separate thread
+    to avoid blocking the GUI while asking for confirmation.
+    """
+    logger.info("Starting update download...")
+    # This part (download/restart) should ideally run after user confirmation
+    # and potentially show progress. For simplicity, direct call here.
+    # In a real GUI app, you'd disable buttons, show a progress indicator.
+
+    # For a responsive UI during download, consider another thread + progress bar.
+    # Simplified synchronous download here:
+    downloaded_path = download_update(url, progress_callback=update_progress_handler)
+
+    if downloaded_path:
+        logger.info("Download complete. Triggering update restart.")
+        # This call will attempt to exit the application
+        if not trigger_update_restart(downloaded_path):
+            # If triggering fails, re-enable GUI and show error
+            schedule_gui_update(set_buttons_state, 'normal')
+            schedule_gui_update(messagebox.showerror, "Update Error", "Failed to start the update process. The downloaded file might be removed. Please try updating manually or restarting the application.")
+    else:
+        # If download fails, re-enable GUI and show error
+        schedule_gui_update(set_buttons_state, 'normal')
+        schedule_gui_update(messagebox.showerror, "Update Error", "Failed to download the update file. Please check your internet connection and permissions, then try again.")
+
+def perform_update_check(show_no_update_message=False):
+    """
+    Checks for updates and prompts the user if one is found.
+    Runs the check itself in a separate thread to avoid blocking startup.
+    """
+
+    def check_thread_target():
+        logger.info("Running update check in background thread...")
+        try:
+            is_update, latest_v, url = check_for_updates()
+
+            if is_update and url:
+                logger.info(f"Update available: Version {latest_v}")
+                # Schedule the confirmation dialog back in the main GUI thread
+                schedule_gui_update(ask_user_to_update, latest_v, url)
+            elif is_update and not url:
+                logger.warning("Update check found a new version, but no download URL for the .exe asset.")
+                if show_no_update_message: # Only show if manually triggered?
+                     schedule_gui_update(messagebox.showinfo, "Update Info", f"A new version ({latest_v}) is available, but the download asset could not be found in the release.")
+            elif show_no_update_message:
+                logger.info("No update required or check failed.")
+                schedule_gui_update(messagebox.showinfo, "Up-to-Date", f"You are running the latest version ({__APP_VERSION__}).")
+            else:
+                 logger.info("No update required or check failed (silent).")
+
+
+        except Exception as e:
+            logger.error(f"Error during update check thread: {e}", exc_info=True)
+            # Optionally inform the user via schedule_gui_update + messagebox
+
+    # Start the check in a daemon thread so it doesn't block app exit
+    thread = threading.Thread(target=check_thread_target, daemon=True)
+    thread.start()
+
+def ask_user_to_update(latest_v, url):
+    """
+    Asks the user (in the main thread) if they want to update.
+    Must be called via schedule_gui_update or run directly in main thread.
+    """
+    if not root or not root.winfo_exists(): # Check if window exists
+        logger.warning("Update confirmation skipped: Root window closed.")
+        return
+
+    confirm = messagebox.askyesno(
+        "Update Available",
+        f"A new version ({latest_v}) of {__APP_NAME__} is available.\n"
+        f"Your current version is {__APP_VERSION__}.\n\n"
+        "Do you want to download and install it now?\n"
+        "The application will restart."
+    )
+
+    if confirm:
+        logger.info("User confirmed update. Preparing download and restart.")
+        # Disable buttons while update happens
+        set_buttons_state('disabled')
+        # Optionally show a "downloading..." status
+        # schedule_gui_update(flag_label.configure, text="Downloading update...", text_color="yellow")
+
+        # Start the download/restart process. Could be in another thread
+        # if download_update itself is blocking and needs progress UI.
+        # Simplified: directly call the handler function.
+        _perform_update_download_and_restart(url)
+    else:
+        logger.info("User declined update.")
+
 
 # --- GUI Setup ---
 def setup_logging_to_text(log_console):
@@ -397,7 +504,7 @@ clear_log_button = ctk.CTkButton(log_frame, text="Clear Log", command=clear_log,
 clear_log_button.grid(row=2, column=0, pady=(5, 10), padx=10, sticky="e") # Place below text, aligned right
 
 # --- Initial Logs (Original messages) ---
-logger.info("Application started.")
+logger.info(f"Application started. Version: {__APP_VERSION__}") # Log current version
 if is_admin_flag: # Use the stored flag
     logger.info("Running with administrator privileges.")
 else:
@@ -405,4 +512,7 @@ else:
 
 
 # --- Start UI ---
+# Perform initial check silently in the background after a short delay
+root.after(1500, perform_update_check, False) # Check after 1.5s, don't show 'up-to-date' msg
+
 root.mainloop()
