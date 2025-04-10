@@ -3,11 +3,14 @@ import os
 import ctypes
 import logging
 import configparser
+from win11toast import toast
 
 # Set up logging
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
 logger = logging.getLogger(__name__)
 
+def windows_notify(message:str):
+    toast(message, icon=resource_path('src/assets/bg_ai_gen.ico')) 
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """

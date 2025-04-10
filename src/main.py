@@ -4,16 +4,13 @@ import threading  # Imported for multithreading
 from PIL import Image
 from tkinter import scrolledtext, filedialog, messagebox
 
-import sys # Needed for updater
-import os  # Needed for updater
-
 # Assuming 'core' directory is structured correctly relative to this script
 from core.archiver import *
 from core.config import * # Ensure constants like REPO_OWNER, TEXT_FONT etc. are defined here
 from core.config import __APP_VERSION__, __APP_NAME__
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
-from core.utils import is_admin, load_config, resource_path, save_config
+from core.utils import is_admin, load_config, resource_path, save_config, windows_notify
 from core.switcher_updater import check_for_updates, download_update, trigger_update_restart
 
 # --- Configuration ---
@@ -29,9 +26,9 @@ def update_progress_handler(downloaded_bytes, total_bytes, percent):
     """ Placeholder for showing download progress in the GUI """
     # In a real implementation, you'd update a progress bar widget
     if total_bytes > 0:
-        print(f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)")
+        logger.debug(f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)")
     else:
-        print(f"Downloading update: {downloaded_bytes} bytes (total size unknown)")
+        logger.debug(f"Downloading update: {downloaded_bytes} bytes (total size unknown)")
     # Make sure GUI updates happen safely (e.g., via schedule_gui_update)
     # schedule_gui_update(my_progress_bar.set, percent / 100.0)
 
@@ -139,7 +136,7 @@ def setup_logging_to_text(log_console):
                 log_console.after(0, self._update_log_console, msg)
             except Exception as e:
                  # Fallback logging if the widget is somehow destroyed
-                print(f"Error updating log console via .after(): {e}\nLog message: {msg}")
+                logger.error(f"Error updating log console via .after(): {e}\nLog message: {msg}")
 
         def _update_log_console(self, msg):
              # This method will be called via root.after, ensuring it runs in the main GUI thread
@@ -176,7 +173,7 @@ def schedule_gui_update(callback, *args):
         root.after(0, callback, *args)
     else:
         # Log a warning if the window is closed while a thread tries to update it
-        print(f"Warning: Attempted to schedule GUI update but root window no longer exists. Callback: {callback}")
+        logger.warning(f"Warning: Attempted to schedule GUI update but root window no longer exists. Callback: {callback}")
 
 
 # --- GUI Update Functions (Keep original names, but called via schedule_gui_update) ---
@@ -184,6 +181,9 @@ def update_flag(success):
     """Updates the status flag label based on the success of an operation."""
     if success:
         flag_label.configure(text="Update completed!", text_color="green")
+        thread = threading.Thread(target=windows_notify, args=("Update completed!",))
+        thread.start()
+
     else:
         flag_label.configure(text="ERROR!! Please, see the logs below!", text_color="red") # Kept original error text
 
