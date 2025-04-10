@@ -504,7 +504,7 @@ clear_log_button = ctk.CTkButton(log_frame, text="Clear Log", command=clear_log,
 clear_log_button.grid(row=2, column=0, pady=(5, 10), padx=10, sticky="e") # Place below text, aligned right
 
 # --- Initial Logs (Original messages) ---
-logger.info(f"Application started. Version: {__APP_VERSION__}") # Log current version
+logger.info(f"Application started. Local Version: {__APP_VERSION__}") # Log current version
 if is_admin_flag: # Use the stored flag
     logger.info("Running with administrator privileges.")
 else:
