@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def get_latest_release_tag(repo_full_name: str) -> str | None:
+def get_latest_release_tag(repo_full_name: str) -> str:
     """
     Fetches the tag name of the latest release of a GitHub repository
     using the GitHub REST API with standard libraries.

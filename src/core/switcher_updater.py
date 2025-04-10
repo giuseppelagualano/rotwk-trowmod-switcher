@@ -214,7 +214,7 @@ def trigger_update_restart(downloaded_exe_path):
         # CREATE_NEW_CONSOLE shows the batch script window (useful for debugging).
         # Use 0 (or CREATE_NO_WINDOW) instead of CREATE_NEW_CONSOLE if you want it hidden.
         creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE
-        subprocess.Popen(['cmd.exe', '/c', batch_filename], creationflags=0)
+        subprocess.Popen(['cmd.exe', '/c', batch_filename], creationflags=creation_flags)
 
         logger.info("Update script launched. Exiting application to allow update.")
         # Exit the current Python application immediately
