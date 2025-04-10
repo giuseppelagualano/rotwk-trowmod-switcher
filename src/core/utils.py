@@ -2,7 +2,7 @@ import sys
 import os
 import ctypes
 import logging
-
+import configparser
 
 # Set up logging
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -60,3 +60,52 @@ def remove_trailing_slashes(path):
     The path string with all trailing slashes removed.
   """
   return path.rstrip(os.sep)
+
+import configparser
+import os
+
+def save_config(config_file_path, section, key, value):
+    """
+    Saves a configuration value to an INI file, creating parent directories if necessary.
+
+    Args:
+        config_file_path (str): The path to the configuration file.
+        section (str): The section within the configuration file.
+        key (str): The key of the parameter to save.
+        value (str): The value of the parameter to save.
+    """
+    config = configparser.ConfigParser()
+    if os.path.exists(config_file_path):
+        config.read(config_file_path)
+
+    if not config.has_section(section):
+        config.add_section(section)
+
+    config.set(section, key, value)
+
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(config_file_path), exist_ok=True)
+
+    with open(config_file_path, 'w') as configfile:
+        config.write(configfile)
+    print(f"Parameter '{key}' saved with value '{value}' in section '{section}' of '{config_file_path}'")
+
+def load_config(config_file_path, section, key, default=None):
+    """
+    Loads a configuration value from an INI file.
+
+    Args:
+        config_file_path (str): The path to the configuration file.
+        section (str): The section within the configuration file.
+        key (str): The key of the parameter to load.
+        default (str, optional): The default value to return if the key does not exist. Defaults to None.
+
+    Returns:
+        str or None: The value of the parameter or the default value if not found.
+    """
+    config = configparser.ConfigParser()
+    if os.path.exists(config_file_path):
+        config.read(config_file_path)
+        if config.has_section(section) and config.has_option(section, key):
+            return config.get(section, key)
+    return default

@@ -13,7 +13,7 @@ from core.config import * # Ensure constants like REPO_OWNER, TEXT_FONT etc. are
 from core.config import __APP_VERSION__, __APP_NAME__
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.registry import find_rotwk_install_path
-from core.utils import is_admin, resource_path
+from core.utils import is_admin, load_config, resource_path, save_config
 from core.switcher_updater import check_for_updates, download_update, trigger_update_restart
 
 # --- Configuration ---
@@ -282,6 +282,8 @@ def on_remote_update_click():
         # schedule_gui_update(flag_label.configure, text="Error: RoTWK Path Invalid", text_color="red")
         return
 
+    save_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, ROTWK_CONTENT_KEY, rotwk_path)
+
     # Disable buttons before starting the thread
     set_buttons_state('disabled')
     # Optionally update status label to "Running..."
@@ -313,6 +315,7 @@ def on_local_update_click():
         return
 
     logger.info(f"Using local content path: {source_content_path}") # Original log
+    save_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, LOCAL_CONTENT_KEY, source_content_path)
 
     # Disable buttons before starting the thread
     set_buttons_state('disabled')
@@ -333,6 +336,7 @@ def browse_rotwk_path():
         rotwk_path_entry.delete(0, ctk.END)
         rotwk_path_entry.insert(0, directory)
         logger.info(f"RoTWK path set to: {directory}")
+        save_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, ROTWK_CONTENT_KEY, rotwk_path_entry.get())
 
 def browse_local_dev_path():
     """Opens a dialog to browse for the local DEV mod folder path."""
@@ -342,6 +346,8 @@ def browse_local_dev_path():
         local_path_entry.delete(0, ctk.END)
         local_path_entry.insert(0, directory)
         logger.info(f"Local DEV Mod path set to: {directory}")
+        save_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, LOCAL_CONTENT_KEY, local_path_entry.get())
+
 
 ###### MAIN - GUI Construction (Original Code Preserved) ####
 rotwk_default_path = find_rotwk_install_path(REGISTRY_PATHS_ROTWK)
@@ -404,7 +410,9 @@ remote_frame.grid_columnconfigure(2, weight=0)  # Update Btn
 
 rotwk_path_entry = ctk.CTkEntry(remote_frame, font=TEXT_FONT)
 rotwk_path_entry.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")
-rotwk_path_entry.insert(0, rotwk_default_path)
+
+loaded_rotwk_path = load_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, ROTWK_CONTENT_KEY, rotwk_default_path)
+rotwk_path_entry.insert(0, loaded_rotwk_path)
 
 browse_button_remote = ctk.CTkButton(
     remote_frame,
@@ -435,7 +443,11 @@ local_frame.grid_columnconfigure(0, weight=1)
 local_frame.grid_columnconfigure(1, weight=0)
 local_frame.grid_columnconfigure(2, weight=0)
 
-local_path_entry = ctk.CTkEntry(local_frame, font=TEXT_FONT, placeholder_text="Insert DEV Mod folder path here")
+loaded_local_path_entry = load_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, LOCAL_CONTENT_KEY, "Insert DEV Mod folder path here")
+
+local_path_entry = ctk.CTkEntry(local_frame, font=TEXT_FONT)
+local_path_entry.insert(0, loaded_local_path_entry)
+
 local_path_entry.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")
 
 browse_button_local = ctk.CTkButton(
