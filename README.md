@@ -6,6 +6,8 @@
 
 This tool facilitates seamless mod version alignment for the fantastic **TROWMod** created by **Simone Orlandi**.
 
+![screenshot](src\assets\app_screenshot.png)
+
 ---
 
 ## Motivation
