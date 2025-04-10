@@ -1,3 +1,4 @@
+import subprocess
 import customtkinter as ctk
 import logging
 import threading  # Imported for multithreading
@@ -348,6 +349,46 @@ def browse_local_dev_path():
         logger.info(f"Local DEV Mod path set to: {directory}")
         save_config(APPDATA_FOLDER + CONFIG_FILE_NAME, CONFIG_PATH_SECTION, LOCAL_CONTENT_KEY, local_path_entry.get())
 
+def on_launch_game_click():
+    """Attempts to launch the RotWK game executable."""
+    logger.info("Attempting to launch game...")
+
+    rotwk_path = rotwk_path_entry.get()
+
+    # --- Path Validation ---
+    if not rotwk_path or rotwk_path == "NOT FOUND!" or not os.path.isdir(rotwk_path):
+        logger.error("Invalid RotWK path provided for launching.")
+        messagebox.showerror("Launch Error", "The Rise of the Witch-king installation path is invalid or not set.")
+        return
+
+    # Assume the standard executable name
+    game_exe_name = "lotrbfme2ep1.exe"
+    full_game_exe_path = os.path.join(rotwk_path, game_exe_name)
+
+    if not os.path.exists(full_game_exe_path):
+        logger.error(f"Game executable not found at: {full_game_exe_path}")
+        messagebox.showerror("Launch Error", f"Could not find the game executable:\n{game_exe_name}\n\nIn the specified path:\n{rotwk_path}")
+        return
+
+    # --- Launch Game ---
+    try:
+        logger.info(f"Launching: {full_game_exe_path}")
+
+        # Launch the game, setting the CWD (Current Working Directory)
+        # to the game's directory. This is often necessary.
+        subprocess.Popen([full_game_exe_path], cwd=rotwk_path)
+
+        logger.info("Game launch command issued.")
+        # Optional: Show a success message (usually not needed)
+        # messagebox.showinfo("Launch Game", "Attempting to launch the game...")
+
+    except OSError as e:
+        logger.error(f"OS Error launching game: {e}", exc_info=True)
+        messagebox.showerror("Launch Error", f"Operating system error while launching the game:\n{e}")
+    except Exception as e:
+        logger.error(f"Unexpected error launching game: {e}", exc_info=True)
+        messagebox.showerror("Launch Error", f"An unexpected error occurred while launching the game:\n{e}")
+
 
 ###### MAIN - GUI Construction (Original Code Preserved) ####
 rotwk_default_path = find_rotwk_install_path(REGISTRY_PATHS_ROTWK)
@@ -370,6 +411,11 @@ try:
         light_image=Image.open(resource_path('src/assets/bg_ai_gen.jpeg')),
         dark_image=Image.open(resource_path('src/assets/bg_ai_gen.jpeg')),
         size=(1200, 1200) # Original size
+    )
+    game_ico = ctk.CTkImage(
+        light_image=Image.open(resource_path('src/assets/game_icon.png')),
+        dark_image=Image.open(resource_path('src/assets/game_icon.png')),
+        size=(32, 32)
     )
     background_label = ctk.CTkLabel(root, image=bg_image, text="")
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
@@ -492,6 +538,21 @@ else:
 
 flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=LABEL_FONT, text_color=flag_color)
 flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+
+launch_game_button = ctk.CTkButton(
+    flag_frame,
+    text="Launch Game",
+    image=game_ico,
+    font=SECONDARY_BUTTON_FONT,
+    command=on_launch_game_click,
+    fg_color="#1c2c2c",
+    hover_color=BUTTON_PRIMARY_HOVER,
+    border_color=BUTTON_SECONDARY_HOVER,
+    border_width=1,
+    width=120
+)
+# Posiziona il pulsante nella colonna 1, allineato a destra
+launch_game_button.grid(row=0, column=1, padx=(5, 10), pady=5, sticky="e")
 
 # --- LOG CONSOLE SECTION (Original Code) ---
 log_frame = ctk.CTkFrame(main_frame)

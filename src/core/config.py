@@ -2,7 +2,7 @@
 import os
 
 __APP_NAME__ = "rotwk-trowmod-switcher"
-__APP_VERSION__ = "2.1.1"
+__APP_VERSION__ = "2.2.0"
 UPDATER_GITHUB_REPO = "giuseppelagualano/rotwk-mod-switcher"
 
 # --- Archive Settings ---
