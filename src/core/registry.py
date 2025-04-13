@@ -1,12 +1,14 @@
 # core/registry.py
-import winreg
 import logging
+import winreg
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 # Make sure to import REGISTRY_PATHS_ROTWK from config if needed directly,
 # or pass it as an argument from the GUI layer. Passing as argument is cleaner.
 
 logger = logging.getLogger(__name__)
+
 
 def find_rotwk_install_path(registry_paths: List[str]) -> Optional[Path]:
     """
@@ -32,25 +34,37 @@ def find_rotwk_install_path(registry_paths: List[str]) -> Optional[Path]:
                         logger.info(f"Found RoTWK installation path: {install_path}")
                         return install_location_str
                     else:
-                        logger.warning(f"Registry path found ('{install_location_str}'), but it's not a valid directory.")
+                        logger.warning(
+                            f"Registry path found ('{install_location_str}'), but it's not a valid directory."
+                        )
                 except FileNotFoundError:
                     logger.warning(f"'InstallPath' value not found in key: {path_str}")
                 except Exception as e:
-                    logger.error(f"Error reading value from key {path_str}: {e}", exc_info=True)
+                    logger.error(
+                        f"Error reading value from key {path_str}: {e}", exc_info=True
+                    )
                 finally:
-                    if 'key' in locals(): # Ensure key was successfully opened before trying to close
+                    if (
+                        "key" in locals()
+                    ):  # Ensure key was successfully opened before trying to close
                         winreg.CloseKey(key)
             except FileNotFoundError:
                 logger.debug(f"Registry key not found: HKEY_LOCAL_MACHINE\\{path_str}")
                 continue
             except Exception as e:
-                logger.error(f"Error opening registry key {path_str}: {e}", exc_info=True)
+                logger.error(
+                    f"Error opening registry key {path_str}: {e}", exc_info=True
+                )
             finally:
-                if 'hklm' in locals(): # Ensure connection was successful before trying to close
+                if (
+                    "hklm" in locals()
+                ):  # Ensure connection was successful before trying to close
                     winreg.CloseKey(hklm)
         except Exception as e:
             logger.error(f"Failed to connect to HKEY_LOCAL_MACHINE: {e}", exc_info=True)
             break
 
-    logger.warning("RoTWK installation path not found in any specified registry locations.")
+    logger.warning(
+        "RoTWK installation path not found in any specified registry locations."
+    )
     return None

@@ -1,6 +1,6 @@
 # TROWMod Updater & Local Builder
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **An automated tool to simplify updating and synchronizing TROWMod versions for The Lord of the Rings™: The Rise of the Witch-king™ (RotWK), primarily designed for development and testing within a close group of friends.**
 
@@ -74,7 +74,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 * Huge thanks to **Simone Orlandi** for creating the excellent **TROWMod**. This tool wouldn't exist without his work.
 * Thanks to the creators of the libraries used (`customtkinter`, `pyBIG`, `Pillow`).
 
-## How to create the exe: 
+## How to create the exe:
 ```
 python -m PyInstaller .\main.spec
 ```

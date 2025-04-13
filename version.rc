@@ -18,11 +18,11 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'GIuseppe La Gualano'),
             StringStruct(u'FileDescription', u'RoTWK TROWMod Switcher'),
-            StringStruct(u'FileVersion', u'2.2.0'),
+            StringStruct(u'FileVersion', u'3.0.0'),
             StringStruct(u'InternalName', u'RoTWK TROWMod Switcher'),
             StringStruct(u'LegalCopyright', u'Giuseppe La Gualano'),
             StringStruct(u'ProductName', u'RoTWK TROWMod Switcher'),
-            StringStruct(u'ProductVersion', u'2.2.0'),
+            StringStruct(u'ProductVersion', u'3.0.0'),
             StringStruct(u'ApplicationName', u'rotwk-trowmod-switcher.exe')
           ]
         )

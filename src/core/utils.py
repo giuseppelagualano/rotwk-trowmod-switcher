@@ -1,19 +1,22 @@
-import sys
-import os
+import configparser
 import ctypes
 import logging
-import configparser
+import os
+import sys
+
 from win11toast import toast
 
 # Set up logging
-log_format = '%(asctime)s - %(levelname)s - %(message)s'
+log_format = "%(asctime)s - %(levelname)s - %(message)s"
 logger = logging.getLogger(__name__)
 
-def windows_notify(message:str):
-    toast(message, icon=resource_path('src/assets/bg_ai_gen.ico')) 
+
+def windows_notify(message: str):
+    toast(message, icon=resource_path("src/assets/bg_ai_gen.ico"))
+
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
@@ -34,7 +37,7 @@ def is_admin():
         bool: True if the user is part of the Administrators group, False otherwise.
               Returns False on non-Windows OS.
     """
-    if os.name == 'nt':  # Check if the OS is Windows ('nt' stands for New Technology)
+    if os.name == "nt":  # Check if the OS is Windows ('nt' stands for New Technology)
         try:
             # Call the Windows API function IsUserAnAdmin
             # Returns non-zero (True) if the user is an admin, 0 (False) otherwise.
@@ -50,22 +53,21 @@ def is_admin():
         # Not Windows, so the concept of "running as admin" doesn't apply directly
         # On Unix-like systems (Linux, macOS), you'd check for root (UID 0)
         # return os.geteuid() == 0 # Uncomment if you need root check on Unix
-        return False # For this context, return False if not Windows
+        return False  # For this context, return False if not Windows
+
 
 def remove_trailing_slashes(path):
-  """
-  Removes all trailing slashes from a path.
+    """
+    Removes all trailing slashes from a path.
 
-  Args:
-    path: The path string.
+    Args:
+      path: The path string.
 
-  Returns:
-    The path string with all trailing slashes removed.
-  """
-  return path.rstrip(os.sep)
+    Returns:
+      The path string with all trailing slashes removed.
+    """
+    return path.rstrip(os.sep)
 
-import configparser
-import os
 
 def save_config(config_file_path, section, key, value):
     """
@@ -89,9 +91,12 @@ def save_config(config_file_path, section, key, value):
     # Ensure the directory exists
     os.makedirs(os.path.dirname(config_file_path), exist_ok=True)
 
-    with open(config_file_path, 'w') as configfile:
+    with open(config_file_path, "w") as configfile:
         config.write(configfile)
-    print(f"Parameter '{key}' saved with value '{value}' in section '{section}' of '{config_file_path}'")
+    print(
+        f"Parameter '{key}' saved with value '{value}' in section '{section}' of '{config_file_path}'"
+    )
+
 
 def load_config(config_file_path, section, key, default=None):
     """

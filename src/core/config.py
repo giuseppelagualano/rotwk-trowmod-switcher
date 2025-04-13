@@ -2,7 +2,7 @@
 import os
 
 __APP_NAME__ = "rotwk-trowmod-switcher"
-__APP_VERSION__ = "2.2.0"
+__APP_VERSION__ = "3.0.0"
 UPDATER_GITHUB_REPO = "giuseppelagualano/rotwk-mod-switcher"
 
 # --- Archive Settings ---
@@ -16,7 +16,7 @@ REGISTRY_PATHS_ROTWK = [
 ]
 
 # LOCAL SAVINGS
-APPDATA_FOLDER = os.getenv('LOCALAPPDATA') + "/RotWKModSwitcher/"
+APPDATA_FOLDER = os.getenv("LOCALAPPDATA") + "/RotWKModSwitcher/"
 CONFIG_FILE_NAME = "config.ini"
 CONFIG_PATH_SECTION = "paths"
 LOCAL_CONTENT_KEY = "local_mod_path"
