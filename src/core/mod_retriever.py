@@ -5,8 +5,12 @@ import zipfile
 import tempfile
 import logging
 import os
-from core.config import DEFAULT_INI_ARCHIVE_NAME, DEFAULT_ARTS_ARCHIVE_NAME, DEFAULT_ITLANG_ARCHIVE_NAME
-from core.archiver import *
+from core.big_archiver.costants import (
+    DEFAULT_INI_ARCHIVE_NAME,
+    DEFAULT_ARTS_ARCHIVE_NAME,
+    DEFAULT_ITLANG_ARCHIVE_NAME,
+)
+from core.big_archiver.archiver import *
 
 # --- Logger Setup ---
 # Configure logging for informative output
