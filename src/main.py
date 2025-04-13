@@ -197,6 +197,7 @@ def set_buttons_state(new_state):
     """
     remote_update_button.configure(state=new_state)
     local_update_button.configure(state=new_state)
+    launch_game_button.configure(state=new_state)
     # Optionally disable browse buttons too, if desired
     browse_button_remote.configure(state=new_state)
     browse_button_local.configure(state=new_state)
