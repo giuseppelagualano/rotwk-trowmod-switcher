@@ -403,7 +403,7 @@ root = ctk.CTk()
 root.resizable(False, False)
 root.geometry(INITIAL_WINDOW_SIZE)
 root.iconbitmap(resource_path('src/assets/bg_ai_gen.ico'))
-root.title("RoTWK Mod Switcher")
+root.title("RoTWK Mod Switcher - v." + str(__APP_VERSION__))
 
 # Load background image (Original Code)
 try:
