@@ -179,35 +179,7 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
 
             # 7. Call the original archiving function with the path to the extracted source code
             if source_content_path:
-                success = False
-
-                logger.info("Proceeding to create the big archives...")
-                ini_success = create_trowmod_ini_big_archive(
-                    source_dir_path=source_content_path, # Use the determined content path
-                    output_dir_path=game_path,
-                    archive_name=DEFAULT_INI_ARCHIVE_NAME
-                )
-
-                arts_success = create_trowmod_arts_big_archive(
-                    source_dir_path=source_content_path, # Use the determined content path
-                    output_dir_path=game_path,
-                    archive_name=DEFAULT_ARTS_ARCHIVE_NAME
-                )
-
-                itlang_success = create_trowmod_itlang_big_archive(
-                    source_dir_path=source_content_path, # Use the determined content path
-                    output_dir_path=game_path,
-                    archive_name=DEFAULT_ITLANG_ARCHIVE_NAME
-                )
-
-                if ini_success and arts_success and itlang_success:
-                    logger.info("Archives creation reported success.")
-                    success = True
-                else:
-                    logger.error("Archives creation reported failure.")
-                    success = False
-
-                return success
+                return create_big_archives(source_content_path=source_content_path, game_path=game_path, logger=logger)
             
             else:
                 # Should not happen if logic above is correct, but handle defensively

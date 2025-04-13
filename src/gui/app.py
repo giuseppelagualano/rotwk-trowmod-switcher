@@ -11,6 +11,7 @@ from tkinter import scrolledtext, filedialog, messagebox
 # --- Core Imports ---
 # Note: Assuming 'src' is in PYTHONPATH or handled by the execution context
 from core.big_archiver.archiver import (
+    create_big_archives,
     create_trowmod_ini_big_archive,
     create_trowmod_arts_big_archive,
     create_trowmod_itlang_big_archive,
@@ -193,29 +194,12 @@ def _run_remote_update_thread(repo_full_name, game_path):
 
 def _run_local_update_thread(source_dir_path, output_dir_path):
     """Target function for the local update worker thread."""
-    success = False
     try:
         logger.info(f"Starting local update thread from {source_dir_path}...")
+        success = create_big_archives(source_content_path=source_dir_path, game_path=output_dir_path, logger=logger)
 
-        ini_success = create_trowmod_ini_big_archive(
-            source_dir_path=source_dir_path,
-            output_dir_path=output_dir_path,
-            archive_name=DEFAULT_INI_ARCHIVE_NAME
-        )
-        arts_success = create_trowmod_arts_big_archive(
-            source_dir_path=source_dir_path,
-            output_dir_path=output_dir_path,
-            archive_name=DEFAULT_ARTS_ARCHIVE_NAME
-        )
-        itlang_success = create_trowmod_itlang_big_archive(
-            source_dir_path=source_dir_path,
-            output_dir_path=output_dir_path,
-            archive_name=DEFAULT_ITLANG_ARCHIVE_NAME
-        )
-
-        if ini_success and arts_success and itlang_success:
+        if success:
             logger.info("Local update thread finished successfully.")
-            success = True
         else:
             logger.error("Local update thread failed.")
     except Exception as e:
