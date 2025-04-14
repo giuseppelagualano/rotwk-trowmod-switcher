@@ -504,6 +504,7 @@ def run_gui():
     root = ctk.CTk()
     root.resizable(False, False)
     root.geometry(INITIAL_WINDOW_SIZE)
+
     try:
         root.iconbitmap(resource_path("src/assets/bg_ai_gen.ico"))
     except Exception as e:
@@ -515,7 +516,7 @@ def run_gui():
         bg_image = ctk.CTkImage(
             light_image=Image.open(resource_path("src/assets/bg_ai_gen.jpeg")),
             dark_image=Image.open(resource_path("src/assets/bg_ai_gen.jpeg")),
-            size=(1200, 1200),
+            size=(1000, 900),
         )
         game_ico = ctk.CTkImage(
             light_image=Image.open(resource_path("src/assets/game_icon.png")),
@@ -529,7 +530,7 @@ def run_gui():
         game_ico = None  # Ensure variable exists even on failure
 
     # Main frame
-    main_frame = ctk.CTkFrame(root, corner_radius=20)
+    main_frame = ctk.CTkFrame(root, corner_radius=20, fg_color="transparent")
     main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
     main_frame.grid_columnconfigure(0, weight=1)
     # Configure rows as before...
@@ -577,7 +578,7 @@ def run_gui():
 
     remote_update_button = ctk.CTkButton(
         remote_frame,
-        text="Online Update",
+        text="Remote Update",
         font=PRIMARY_BUTTON_FONT,
         text_color=TEXT_PRIMARY,
         command=on_remote_update_click,
