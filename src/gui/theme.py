@@ -1,5 +1,5 @@
 # --- GUI Settings ---
-APP_TITLE = "RoTWK Mod Switcher - v."
+APP_TITLE = "RoTWK Mod Switcher"
 INITIAL_WINDOW_SIZE = "1200x1200"
 
 # LORD OF THE RINGS THEMED COLORS

@@ -508,7 +508,7 @@ def run_gui():
         root.iconbitmap(resource_path("src/assets/bg_ai_gen.ico"))
     except Exception as e:
         logger.error(f"Failed to set window icon: {e}")
-    root.title(f"{APP_TITLE}{__APP_VERSION__}")
+    root.title(f"{APP_TITLE} - v.{__APP_VERSION__}")
 
     # Load background image
     try:

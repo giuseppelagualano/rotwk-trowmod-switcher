@@ -6,13 +6,17 @@ import sys
 
 from win11toast import toast
 
+from gui.theme import APP_TITLE
+
 # Set up logging
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
 logger = logging.getLogger(__name__)
 
 
 def windows_notify(message: str):
-    toast(message, icon=resource_path("src/assets/bg_ai_gen.ico"))
+    toast(
+        message=message, title=APP_TITLE, icon=resource_path("src/assets/bg_ai_gen.ico")
+    )
 
 
 def resource_path(relative_path):

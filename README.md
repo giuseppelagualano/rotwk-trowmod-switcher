@@ -50,7 +50,7 @@ Please support the original mod creator! This tool merely streamlines the instal
 
 ### Using a Pre-built Release (Recommended for End-Users)
 
-1.  Go to the [Releases Page](https://github.com/giuseppelagualano/rotwk-mod-switcher/releases) of this repository. 2.  Download the latest `.exe` file.
+1.  Go to the [Releases Page](https://github.com/giuseppelagualano/rotwk-trowmod-switcher/releases) of this repository. 2.  Download the latest `.exe` file.
 3.  Run the downloaded executable **as Administrator**.
 4.  The tool will attempt to find your RotWK path. Verify it's correct or use "Browse..." to select the main game installation folder (e.g., `C:\Program Files (x86)\Electronic Arts\The Lord of the Rings, The Rise of the Witch-king\`).
 5.  **To get the latest official mod version:** Click the "**Online Update**" button.
