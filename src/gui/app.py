@@ -27,13 +27,13 @@ from core.config import (
     ROTWK_CONTENT_KEY,
 )
 from core.mod_retriever import update_rotwk_with_latest_mod
-from core.registry import find_rotwk_install_path
 from core.switcher_updater import (
     check_for_updates,
     download_update,
     trigger_update_restart,
 )
-from core.utils import is_admin, load_config, resource_path, save_config, windows_notify
+from core.utils import is_admin, load_config, resource_path, save_config
+from core.windows_utils import find_rotwk_install_path, windows_notify
 
 # --- GUI Theme/Constants Import ---
 from .theme import (

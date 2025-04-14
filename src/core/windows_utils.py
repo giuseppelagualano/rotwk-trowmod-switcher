@@ -4,10 +4,25 @@ import winreg
 from pathlib import Path
 from typing import List, Optional
 
+from win11toast import toast
+
+from core.utils import resource_path
+from gui.theme import APP_TITLE
+
 # Make sure to import REGISTRY_PATHS_ROTWK from config if needed directly,
 # or pass it as an argument from the GUI layer. Passing as argument is cleaner.
 
 logger = logging.getLogger(__name__)
+
+
+def windows_notify(body: str):
+    toast(
+        body=body,
+        title=APP_TITLE,
+        icon=resource_path("src/assets/bg_ai_gen.ico"),
+        audio="ms-winsoundevent:Notification.Looping.Alarm",
+        duration="long",
+    )
 
 
 def find_rotwk_install_path(registry_paths: List[str]) -> Optional[Path]:
