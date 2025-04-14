@@ -1,4 +1,5 @@
 # src/gui/app.py
+import json
 import logging
 import os
 import subprocess
@@ -14,8 +15,8 @@ from PIL import Image
 from core.big_archiver.archiver import (
     create_big_archives,
 )
-from core.config import __APP_NAME__  # Import app name if used in paths/messages
-from core.config import (
+from core.config import (  # Import app name if used in paths/messages
+    __APP_NAME__,
     __APP_VERSION__,
     APPDATA_FOLDER,
     CONFIG_FILE_NAME,
@@ -25,6 +26,7 @@ from core.config import (
     REPO_NAME,
     REPO_OWNER,
     ROTWK_CONTENT_KEY,
+    UPDATE_INFO_FILE_NAME,
 )
 from core.mod_retriever import update_rotwk_with_latest_mod
 from core.switcher_updater import (
@@ -73,6 +75,62 @@ browse_button_remote = None
 browse_button_local = None
 rotwk_path_entry = None
 local_path_entry = None
+
+
+def show_changelog_if_exists():
+    update_info_path = os.path.join(APPDATA_FOLDER, UPDATE_INFO_FILE_NAME)
+
+    if os.path.exists(update_info_path):  # Check file existence directly
+        logger.info(
+            f"Update info file found at '{update_info_path}'. Attempting to display changelog."
+        )
+        version = "N/A"
+        notes = "Could not read update notes."  # Default message
+        try:
+            with open(update_info_path, "r", encoding="utf-8") as f:
+                update_data = json.load(f)
+            version = update_data.get("version", version)
+            # Get the raw notes text, strip leading/trailing whitespace
+            notes = update_data.get("notes", notes).strip()
+            if not notes:  # Handle case where notes might be empty string
+                notes = "No specific notes provided for this update."
+
+            # --- Display using messagebox ---
+            title = f"Update Successful - What's New in v{version}"
+            message = f"Successfully updated to version {version}!\n\n--- Changelog ---\n\n{notes}"
+
+            # Schedule the messagebox call to run after the main window is ready
+            # Using schedule_gui_update ensures it runs in the main GUI thread
+            schedule_gui_update(messagebox.showinfo, title, message)
+
+        except FileNotFoundError:
+            logger.warning("Update info file existed but disappeared before reading.")
+        except json.JSONDecodeError:
+            logger.error("Update info file was corrupted (not valid JSON).")
+            schedule_gui_update(
+                messagebox.showerror,
+                "Changelog Error",
+                f"Could not read update notes for version {version}.\nThe update info file was corrupted.",
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to read, parse or display update info file: {e}", exc_info=True
+            )
+            schedule_gui_update(
+                messagebox.showerror,
+                "Changelog Error",
+                f"Could not display update notes for version {version}.\nError: {e}",
+            )
+        finally:
+            # --- CRITICAL: Clean up the file ---
+            if os.path.exists(update_info_path):
+                try:
+                    os.remove(update_info_path)
+                    logger.info(f"Removed update info file: {update_info_path}")
+                except OSError as e:
+                    logger.error(
+                        f"Failed to remove update info file '{update_info_path}': {e}"
+                    )
 
 
 # --- Helper Function for GUI Updates from Threads ---
@@ -144,7 +202,7 @@ def update_progress_handler(downloaded_bytes, total_bytes, percent):
         )
 
 
-def _perform_update_download_and_restart(url):
+def _perform_update_download_and_restart(url, latest_v, release_notes):
     """Handles the download and restart process."""
     logger.info("Starting update download...")
     flag_label.configure(
@@ -154,8 +212,27 @@ def _perform_update_download_and_restart(url):
     downloaded_path = download_update(url, progress_callback=update_progress_handler)
 
     if downloaded_path:
-        logger.info("Download complete. Triggering update restart.")
+        logger.info("Download complete. Saving update info...")
+
+        # --- Save update info for the new version ---
+        update_info_path = os.path.join(APPDATA_FOLDER, UPDATE_INFO_FILE_NAME)
+        update_data = {"version": latest_v, "notes": release_notes}
+        try:
+            # Ensure the directory exists
+            os.makedirs(APPDATA_FOLDER, exist_ok=True)
+            with open(update_info_path, "w", encoding="utf-8") as f:
+                json.dump(update_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Update info saved to {update_info_path}")
+        except Exception as e:
+            logger.error(f"Failed to save update info: {e}", exc_info=True)
+
         if not trigger_update_restart(downloaded_path):
+            # If triggering fails, clean up the update info file too
+            if os.path.exists(update_info_path):
+                try:
+                    os.remove(update_info_path)
+                except OSError:
+                    pass
             schedule_gui_update(set_buttons_state, "normal")
             schedule_gui_update(
                 messagebox.showerror,
@@ -171,7 +248,7 @@ def _perform_update_download_and_restart(url):
         )
 
 
-def ask_user_to_update(latest_v, url):
+def ask_user_to_update(latest_v, url, release_notes):
     """Asks the user (in the main thread) if they want to update."""
     if not root or not root.winfo_exists():
         logger.warning("Update confirmation skipped: Root window closed.")
@@ -182,13 +259,13 @@ def ask_user_to_update(latest_v, url):
         f"A new version ({latest_v}) of {__APP_NAME__} is available.\n"
         f"Your current version is {__APP_VERSION__}.\n\n"
         "Do you want to download and install it now?\n"
-        "The application will restart.",
+        "You will have to re-run the application manually.",
     )
 
     if confirm:
-        logger.info("User confirmed update. Preparing download and restart.")
+        logger.info("User confirmed update. Preparing download.")
         set_buttons_state("disabled")
-        _perform_update_download_and_restart(url)
+        _perform_update_download_and_restart(url, latest_v, release_notes)
     else:
         logger.info("User declined update.")
 
@@ -200,13 +277,13 @@ def perform_update_check(show_no_update_message=False):
         logger.info("Running update check in background thread...")
         try:
             # Pass the correct repo for the *application itself*
-            is_update, latest_v, url = (
+            is_update, latest_v, url, release_notes = (
                 check_for_updates()
             )  # Uses UPDATER_GITHUB_REPO from config
 
             if is_update and url:
                 logger.info(f"Update available: Version {latest_v}")
-                schedule_gui_update(ask_user_to_update, latest_v, url)
+                schedule_gui_update(ask_user_to_update, latest_v, url, release_notes)
             elif is_update and not url:
                 logger.warning(
                     "Update check found a new version, but no download URL for the .exe asset."
@@ -704,6 +781,9 @@ def run_gui():
         logger.info("Running with administrator privileges.")
     else:
         logger.error("Running without administrator privileges.")
+
+    # Display changelog if exits
+    show_changelog_if_exists()
 
     # Perform initial update check (silent unless update found)
     perform_update_check(show_no_update_message=False)

@@ -42,12 +42,15 @@ def check_for_updates():
                 latest_tag = data.get("tag_name", "").lstrip(
                     "v"
                 )  # Remove leading 'v' if present (e.g., v1.0.1 -> 1.0.1)
+                release_notes = data.get(
+                    "body", ""
+                )  # <-- Extract the release notes body
 
                 if not latest_tag:
                     logger.warning(
                         "Could not find 'tag_name' in the latest release API response."
                     )
-                    return False, None, None
+                    return False, None, None, None
 
                 try:
                     current_v = version.parse(__APP_VERSION__)
@@ -56,7 +59,7 @@ def check_for_updates():
                     logger.error(
                         f"Invalid version format in config ({__APP_VERSION__}) or tag ({latest_tag}). Cannot compare."
                     )
-                    return False, None, None
+                    return False, None, None, None
 
                 logger.info(
                     f"Current app version: {current_v}, Latest GitHub release tag: {latest_tag}"
@@ -77,20 +80,20 @@ def check_for_updates():
                             break
 
                     if download_url:
-                        return True, latest_tag, download_url
+                        return True, latest_tag, download_url, release_notes
                     else:
                         logger.error(
                             f"Update found ({latest_tag}), but the required asset '{expected_asset_name}' was not found in the release assets."
                         )
-                        return False, latest_tag, None
+                        return False, latest_tag, None, None
                 else:
                     logger.info("Application is up-to-date.")
-                    return False, latest_tag, None
+                    return False, latest_tag, None, None
             else:
                 logger.error(
                     f"Failed to fetch release info. Status code: {response.status} {response.reason}"
                 )
-                return False, None, None
+                return False, None, None, None
     except urllib.error.HTTPError as e:
         logger.error(f"HTTP Error checking for updates: {e.code} {e.reason}")
         # Read the response body even for errors, it might contain useful info
@@ -99,16 +102,16 @@ def check_for_updates():
             logger.error(f"GitHub API response body: {error_details}")
         except Exception:
             pass  # Ignore if reading error body fails
-        return False, None, None
+        return False, None, None, None
     except json.JSONDecodeError:
         logger.error("Failed to parse JSON response from GitHub API.")
-        return False, None, None
+        return False, None, None, None
     except Exception as e:
         logger.error(
             f"An unexpected error occurred while checking for updates: {e}",
             exc_info=True,
         )
-        return False, None, None
+        return False, None, None, None
 
 
 def download_update(url, progress_callback=None):
