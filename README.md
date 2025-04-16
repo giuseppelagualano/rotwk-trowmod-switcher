@@ -75,7 +75,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 * Thanks to the creators of the libraries used (`customtkinter`, `pyBIG`, `Pillow`).
 
 ## How to create the exe:
+To test env:
+
 ```
 pip install -e .[dev]
-python scripts/update_rc_version.py && python -m PyInstaller --clean main.spec
+```
+
+To prod:
+```
+pip install . && python scripts/update_rc_version.py && python -m PyInstaller --clean main.spec
 ```
