@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(3, 3, 0, 0),
-    prodvers=(3, 3, 0, 0),
+    filevers=(3, 3, 1, 0),
+    prodvers=(3, 3, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x4,
@@ -18,11 +18,11 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'GIuseppe La Gualano'),
             StringStruct(u'FileDescription', u'RoTWK TROWMod Switcher'),
-            StringStruct(u'FileVersion', u'3.3.0'),
+            StringStruct(u'FileVersion', u'3.3.1'),
             StringStruct(u'InternalName', u'RoTWK TROWMod Switcher'),
             StringStruct(u'LegalCopyright', u'Giuseppe La Gualano'),
             StringStruct(u'ProductName', u'RoTWK TROWMod Switcher'),
-            StringStruct(u'ProductVersion', u'3.3.0'),
+            StringStruct(u'ProductVersion', u'3.3.1'),
             StringStruct(u'ApplicationName', u'rotwk-trowmod-switcher.exe')
           ]
         )

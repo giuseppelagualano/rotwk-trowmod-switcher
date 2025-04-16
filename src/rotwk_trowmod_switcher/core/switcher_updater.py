@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import shutil
 import ssl
 import subprocess
 import sys
@@ -104,69 +105,106 @@ def check_for_updates():
         return False, None, None, None
 
 
-def download_update(url, progress_callback=None):
+def download_update(url):
     """
-    Downloads the update file to a temporary location.
+    Downloads the update file to a temporary location with enhanced logging.
 
     Args:
         url (str): The download URL for the new executable.
-        progress_callback (callable, optional): A function to call with download progress
-                                                 (current_bytes, total_bytes).
 
     Returns:
         str | None: Path to the downloaded file, or None on failure.
     """
     temp_dir = tempfile.gettempdir()
-    # Use a predictable but unique-ish temporary filename
     temp_filename = os.path.join(temp_dir, f"{__APP_NAME__}_update_{os.getpid()}.exe")
 
-    logger.info(f"Attempting to download update from {url} to {temp_filename}")
+    # Log the exact URL being passed
+    logger.info(f"Attempting to download update from URL: {url}")
+    logger.info(f"Target temporary file: {temp_filename}")
 
     try:
         # Clean up potential leftovers from previous failed attempts
         if os.path.exists(temp_filename):
+            logger.debug(f"Removing existing temp file: {temp_filename}")
             os.remove(temp_filename)
 
-        # Define reporthook for progress
-        def report_hook(block_num, block_size, total_size):
-            downloaded = block_num * block_size
-            if progress_callback:
-                if total_size > 0:
-                    # Calculate percentage, handle potential division by zero
-                    percent = min(100, 100 * downloaded / total_size)
-                    progress_callback(downloaded, total_size, percent)
-                else:
-                    # If total size is unknown, just report bytes downloaded
-                    progress_callback(downloaded, -1, -1)  # Indicate unknown total size/percent
+        logger.debug("Creating SSL context using certifi...")
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
 
-        # Add User-Agent header
-        opener = urllib.request.build_opener()
-        opener.addheaders = [("User-Agent", f"{__APP_NAME__}-Updater-Client")]
-        urllib.request.install_opener(opener)
+        logger.debug(f"Creating request object for URL: {url}")
+        # Use the correct App Name in User-Agent
+        request = urllib.request.Request(url, headers={"User-Agent": f"{__APP_NAME__}-Updater-Client"})
 
-        # Perform download
-        urllib.request.urlretrieve(url, temp_filename, reporthook=report_hook if progress_callback else None)
+        logger.debug("Attempting to open URL with urlopen...")
+        with urllib.request.urlopen(request, context=ssl_context) as response:
+            # Log the response status code and headers
+            status_code = response.getcode()
+            headers = response.info()  # or response.getheaders() for list of tuples
+            logger.info(f"Received response status: {status_code}")
+            logger.debug(f"Response headers: \n{headers}")
 
-        logger.info(f"Update downloaded successfully to: {temp_filename}")
-        return temp_filename
+            # Check if the status code indicates success (e.g., 200 OK)
+            if not (200 <= status_code < 300):
+                logger.error(f"Download failed: Server returned status code {status_code}")
+                # You might want to read the response body here for error details from server
+                # try:
+                #     error_body = response.read().decode(errors='ignore')
+                #     logger.error(f"Server response body: {error_body[:500]}...") # Log first 500 chars
+                # except Exception:
+                #     pass
+                return None  # Exit if status is not OK
+
+            logger.debug(f"Attempting to open temporary file for writing: {temp_filename}")
+            with open(temp_filename, "wb") as out_file:
+                logger.debug("Starting download copy using shutil.copyfileobj...")
+                # Copy the content from the response to the local file
+                # shutil.copyfileobj reads in chunks, efficient for large files
+                shutil.copyfileobj(response, out_file)
+                logger.debug("Finished shutil.copyfileobj.")
+
+        # Log the size of the downloaded file
+        if os.path.exists(temp_filename):
+            try:
+                file_size = os.path.getsize(temp_filename)
+                logger.info(f"Update downloaded successfully to: {temp_filename} (Size: {file_size} bytes)")
+                if file_size == 0:
+                    logger.warning("Downloaded file is empty!")
+                # Only return filename if download was successful and file exists
+                return temp_filename
+            except OSError as e:
+                logger.error(f"Error getting size or accessing downloaded file '{temp_filename}': {e}")
+                return None  # Treat as failure if we can't access the file post-download
+        else:
+            # This case should ideally not happen if copyfileobj finished without error,
+            # but good to log defensively.
+            logger.error("Download seemed complete according to copyfileobj, but the temporary file does not exist!")
+            return None
 
     except urllib.error.URLError as e:
         logger.error(f"URL Error downloading update: {e.reason}", exc_info=True)
+        if isinstance(e.reason, ssl.SSLError):
+            logger.error("SSL Error detail: Failed to verify certificate.")
     except OSError as e:
+        # This catches errors during os.remove, open(temp_filename...), os.path.getsize etc.
         logger.error(
-            f"OS Error (e.g., disk full, permissions) downloading update: {e}",
+            f"OS Error (e.g., disk full, permissions, file access) during download/file handling: {e}",
             exc_info=True,
         )
     except Exception as e:
-        logger.error(f"Failed to download update: {e}", exc_info=True)
+        # Catch any other unexpected errors during the process
+        logger.error(f"An unexpected error occurred during download: {e}", exc_info=True)
 
-    # Clean up the temporary file if the download failed
+    # Cleanup in case of failure (code before return None in except blocks or if checks fail)
+    logger.debug("Download function reached cleanup section (download failed or post-download check failed).")
     if os.path.exists(temp_filename):
         try:
             os.remove(temp_filename)
-            logger.debug(f"Cleaned up partially downloaded file: {temp_filename}")
+            logger.debug(f"Cleaned up potentially incomplete file: {temp_filename}")
         except OSError as e:
-            logger.warning(f"Could not remove partially downloaded file '{temp_filename}': {e}")
+            # Log warning if cleanup fails, but proceed to return None
+            logger.warning(f"Could not remove potentially incomplete file '{temp_filename}': {e}")
+
+    # Return None to indicate failure
     return None
 
 
@@ -191,6 +229,8 @@ def trigger_update_restart(downloaded_exe_path):
         return False
 
     current_exe_path = sys.executable  # Path to the currently running .exe
+    logger.info(f"Current exe path: {current_exe_path}")
+
     # script_dir = os.path.dirname(current_exe_path)
     batch_filename = os.path.join(tempfile.gettempdir(), f"updater_{__APP_NAME__}_{os.getpid()}.bat")
 

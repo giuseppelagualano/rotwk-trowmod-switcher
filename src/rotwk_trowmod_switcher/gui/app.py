@@ -187,22 +187,12 @@ def clear_log():
     log_console.configure(state="disabled")
 
 
-# --- Auto-Updater Functions (GUI Interaction) ---
-def update_progress_handler(downloaded_bytes, total_bytes, percent):
-    """Placeholder for showing download progress in the GUI"""
-    if total_bytes > 0:
-        logger.debug(f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)")
-        # Example: schedule_gui_update(my_progress_bar.set, percent / 100.0)
-    else:
-        logger.debug(f"Downloading update: {downloaded_bytes} bytes (total size unknown)")
-
-
 def _perform_update_download_and_restart(url, latest_v, release_notes):
     """Handles the download and restart process."""
     logger.info("Starting update download...")
     flag_label.configure(text="Downloading update...", text_color="yellow")  # Optional status update
 
-    downloaded_path = download_update(url, progress_callback=update_progress_handler)
+    downloaded_path = download_update(url)
 
     if downloaded_path:
         logger.info("Download complete. Saving update info...")
