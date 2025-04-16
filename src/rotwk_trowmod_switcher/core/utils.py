@@ -87,9 +87,7 @@ def save_config(config_file_path, section, key, value):
 
     with open(config_file_path, "w") as configfile:
         config.write(configfile)
-    print(
-        f"Parameter '{key}' saved with value '{value}' in section '{section}' of '{config_file_path}'"
-    )
+    print(f"Parameter '{key}' saved with value '{value}' in section '{section}' of '{config_file_path}'")
 
 
 def load_config(config_file_path, section, key, default=None):

@@ -3,16 +3,22 @@
 import json
 import logging
 import os
+import ssl
 import subprocess
 import sys
 import tempfile
 import urllib.error
 import urllib.request
 
+import certifi
 from packaging import version  # For robust version comparison
 
 # Import necessary config values
-from core.config import __APP_NAME__, __APP_VERSION__, UPDATER_GITHUB_REPO
+from rotwk_trowmod_switcher.config import (
+    __APP_NAME__,
+    __APP_VERSION__,
+    UPDATER_GITHUB_REPO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,45 +39,33 @@ def check_for_updates():
     logger.info(f"Checking for application updates at: {api_url}")
     try:
         # Set a User-Agent header, as GitHub API requires it
-        request = urllib.request.Request(
-            api_url, headers={"User-Agent": f"{__APP_NAME__}-Updater-Client"}
-        )
-        with urllib.request.urlopen(request) as response:
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+        request = urllib.request.Request(api_url, headers={"User-Agent": f"{__APP_NAME__}-Updater-Client"})
+        with urllib.request.urlopen(request, context=ssl_context) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode("utf-8"))
-                latest_tag = data.get("tag_name", "").lstrip(
-                    "v"
-                )  # Remove leading 'v' if present (e.g., v1.0.1 -> 1.0.1)
-                release_notes = data.get(
-                    "body", ""
-                )  # <-- Extract the release notes body
+                latest_tag = data.get("tag_name", "").lstrip("v")  # Remove leading 'v' if present (e.g., v1.0.1 -> 1.0.1)
+                release_notes = data.get("body", "")  # <-- Extract the release notes body
 
                 if not latest_tag:
-                    logger.warning(
-                        "Could not find 'tag_name' in the latest release API response."
-                    )
+                    logger.warning("Could not find 'tag_name' in the latest release API response.")
                     return False, None, None, None
 
                 try:
                     current_v = version.parse(__APP_VERSION__)
                     latest_v = version.parse(latest_tag)
                 except version.InvalidVersion:
-                    logger.error(
-                        f"Invalid version format in config ({__APP_VERSION__}) or tag ({latest_tag}). Cannot compare."
-                    )
+                    logger.error(f"Invalid version format in config ({__APP_VERSION__}) or tag ({latest_tag}). Cannot compare.")
                     return False, None, None, None
 
-                logger.info(
-                    f"Current app version: {current_v}, Latest GitHub release tag: {latest_tag}"
-                )
+                logger.info(f"Current app version: {current_v}, Latest GitHub release tag: {latest_tag}")
 
                 if latest_v > current_v:
                     logger.info(f"Newer version found: {latest_v}")
                     assets = data.get("assets", [])
                     download_url = None
-                    expected_asset_name = (
-                        f"{__APP_NAME__}.exe"  # e.g., TROWModUpdater.exe
-                    )
+                    expected_asset_name = f"{__APP_NAME__}.exe"  # e.g., TROWModUpdater.exe
 
                     for asset in assets:
                         if asset.get("name") == expected_asset_name:
@@ -82,17 +76,13 @@ def check_for_updates():
                     if download_url:
                         return True, latest_tag, download_url, release_notes
                     else:
-                        logger.error(
-                            f"Update found ({latest_tag}), but the required asset '{expected_asset_name}' was not found in the release assets."
-                        )
+                        logger.error(f"Update found ({latest_tag}), but the required asset '{expected_asset_name}' was not found in the release assets.")
                         return False, latest_tag, None, None
                 else:
                     logger.info("Application is up-to-date.")
                     return False, latest_tag, None, None
             else:
-                logger.error(
-                    f"Failed to fetch release info. Status code: {response.status} {response.reason}"
-                )
+                logger.error(f"Failed to fetch release info. Status code: {response.status} {response.reason}")
                 return False, None, None, None
     except urllib.error.HTTPError as e:
         logger.error(f"HTTP Error checking for updates: {e.code} {e.reason}")
@@ -147,9 +137,7 @@ def download_update(url, progress_callback=None):
                     progress_callback(downloaded, total_size, percent)
                 else:
                     # If total size is unknown, just report bytes downloaded
-                    progress_callback(
-                        downloaded, -1, -1
-                    )  # Indicate unknown total size/percent
+                    progress_callback(downloaded, -1, -1)  # Indicate unknown total size/percent
 
         # Add User-Agent header
         opener = urllib.request.build_opener()
@@ -157,9 +145,7 @@ def download_update(url, progress_callback=None):
         urllib.request.install_opener(opener)
 
         # Perform download
-        urllib.request.urlretrieve(
-            url, temp_filename, reporthook=report_hook if progress_callback else None
-        )
+        urllib.request.urlretrieve(url, temp_filename, reporthook=report_hook if progress_callback else None)
 
         logger.info(f"Update downloaded successfully to: {temp_filename}")
         return temp_filename
@@ -180,9 +166,7 @@ def download_update(url, progress_callback=None):
             os.remove(temp_filename)
             logger.debug(f"Cleaned up partially downloaded file: {temp_filename}")
         except OSError as e:
-            logger.warning(
-                f"Could not remove partially downloaded file '{temp_filename}': {e}"
-            )
+            logger.warning(f"Could not remove partially downloaded file '{temp_filename}': {e}")
     return None
 
 
@@ -208,9 +192,7 @@ def trigger_update_restart(downloaded_exe_path):
 
     current_exe_path = sys.executable  # Path to the currently running .exe
     # script_dir = os.path.dirname(current_exe_path)
-    batch_filename = os.path.join(
-        tempfile.gettempdir(), f"updater_{__APP_NAME__}_{os.getpid()}.bat"
-    )
+    batch_filename = os.path.join(tempfile.gettempdir(), f"updater_{__APP_NAME__}_{os.getpid()}.bat")
 
     batch_script_content = f"""@echo off
         title {__APP_NAME__} Updater - Do Not Close This Window

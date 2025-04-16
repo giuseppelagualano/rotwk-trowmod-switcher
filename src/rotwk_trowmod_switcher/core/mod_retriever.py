@@ -1,18 +1,20 @@
 import json
 import logging
 import os
+import shutil
+import ssl
 import tempfile
 import urllib.error
 import urllib.request
 import zipfile
 
-from core.big_archiver.archiver import create_big_archives
+import certifi
+
+from rotwk_trowmod_switcher.core.big_archiver.archiver import create_big_archives
 
 # --- Logger Setup ---
 # Configure logging for informative output
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -34,10 +36,10 @@ def get_latest_release_tag(repo_full_name: str) -> str:
     try:
         # Use standard library's urllib to make the HTTP GET request
         # Set a User-Agent header, as GitHub API requires it
-        request = urllib.request.Request(
-            api_url, headers={"User-Agent": "Python-Urllib-Client"}
-        )
-        with urllib.request.urlopen(request) as response:
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+        request = urllib.request.Request(api_url, headers={"User-Agent": "Python-Urllib-Client"})
+        with urllib.request.urlopen(request, context=ssl_context) as response:
             # Check for successful response (HTTP 200 OK)
             if response.status == 200:
                 # Read the response body and decode it from bytes to string
@@ -55,24 +57,16 @@ def get_latest_release_tag(repo_full_name: str) -> str:
                     return None
             else:
                 # Log error for non-200 responses (although urlopen usually raises HTTPError)
-                logger.error(
-                    f"Failed to fetch latest release info. Status code: {response.status}"
-                )
+                logger.error(f"Failed to fetch latest release info. Status code: {response.status}")
                 return None
     except urllib.error.HTTPError as e:
         # Handle specific HTTP errors
-        logger.error(
-            f"HTTP Error fetching release info for '{repo_full_name}': {e.code} {e.reason}"
-        )
+        logger.error(f"HTTP Error fetching release info for '{repo_full_name}': {e.code} {e.reason}")
         if e.code == 404:
-            logger.error(
-                "Repository or latest release not found. Check the repository name."
-            )
+            logger.error("Repository or latest release not found. Check the repository name.")
         elif e.code == 403:
             # 403 can be due to rate limiting or missing permissions for private repos
-            logger.error(
-                "Access forbidden. This could be due to API rate limits or the repository being private."
-            )
+            logger.error("Access forbidden. This could be due to API rate limits or the repository being private.")
         elif e.code == 401:
             logger.error("Authentication required. The repository might be private.")
         # Read the response body even for errors, it might contain useful info
@@ -113,9 +107,7 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
 
         # 2. Construct the download URL for the zip archive of the tagged release
         # GitHub provides zip archives at this standard URL format
-        zip_url = (
-            f"https://github.com/{repo_full_name}/archive/refs/tags/{latest_tag}.zip"
-        )
+        zip_url = f"https://github.com/{repo_full_name}/archive/refs/tags/{latest_tag}.zip"
         logger.info(f"Attempting to download source code archive from: {zip_url}")
 
         # 3. Create a temporary directory to download and extract the archive
@@ -123,28 +115,41 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
         with tempfile.TemporaryDirectory(prefix="gh_download_") as temp_dir:
             logger.info(f"Created temporary directory: {temp_dir}")
             # Define the path where the zip file will be saved within the temp directory
-            zip_file_path = os.path.join(
-                temp_dir, f"{latest_tag.replace('/', '_')}.zip"
-            )  # Sanitize tag name for filename
+            zip_file_path = os.path.join(temp_dir, f"{latest_tag.replace('/', '_')}.zip")  # Sanitize tag name for filename
 
             # 4. Download the zip file using standard urllib
             try:
                 logger.info(f"Downloading to: {zip_file_path}")
-                # Use urlretrieve to download the file directly to the specified path
-                # Add User-Agent header to avoid potential blocking
-                opener = urllib.request.build_opener()
-                opener.addheaders = [("User-Agent", "Python-Urllib-Client")]
-                urllib.request.install_opener(opener)
-                urllib.request.urlretrieve(zip_url, zip_file_path)
+
+                # Create the SSL context using certifi
+                ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+                # Create the request object (needed if you want to set headers like User-Agent)
+                request = urllib.request.Request(zip_url, headers={"User-Agent": "Python-Urllib-Client"})
+
+                # Open the URL with urlopen using the SSL context
+                with (
+                    urllib.request.urlopen(request, context=ssl_context) as response,
+                    open(zip_file_path, "wb") as out_file,
+                ):
+                    # Copy the content from the response to the local file
+                    # shutil.copyfileobj reads in chunks, efficient for large files
+                    shutil.copyfileobj(response, out_file)
+
                 logger.info(f"Successfully downloaded archive to: {zip_file_path}")
+
             except urllib.error.HTTPError as e:
-                # Handle download errors (e.g., 404 if tag/URL is wrong)
+                logger.error(f"HTTP Error downloading archive from '{zip_url}': {e.code} {e.reason}")
+                return False
+            except urllib.error.URLError as e:  # Add URLError handling for SSL
                 logger.error(
-                    f"HTTP Error downloading archive from '{zip_url}': {e.code} {e.reason}"
+                    f"URL Error downloading archive from '{zip_url}': {e.reason}",
+                    exc_info=True,
                 )
+                if isinstance(e.reason, ssl.SSLError):
+                    logger.error("SSL Error detail: Failed to verify certificate. Check system/certifi certificates.")
                 return False
             except Exception as e:
-                # Handle other potential download errors
                 logger.error(f"Failed to download archive: {e}", exc_info=True)
                 return False
 
@@ -156,9 +161,7 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
                 logger.info(f"Successfully extracted archive in: {temp_dir}")
             except zipfile.BadZipFile:
                 # Handle cases where the downloaded file is corrupted or not a zip file
-                logger.error(
-                    f"Downloaded file '{zip_file_path}' is not a valid zip archive."
-                )
+                logger.error(f"Downloaded file '{zip_file_path}' is not a valid zip archive.")
                 return False
             except Exception as e:
                 # Handle other potential extraction errors
@@ -170,11 +173,7 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
             # We need the path *inside* this folder to pass to the archiver.
             extracted_items = os.listdir(temp_dir)
             # Filter out the zip file itself, leaving potential directories
-            potential_dirs = [
-                item
-                for item in extracted_items
-                if os.path.isdir(os.path.join(temp_dir, item))
-            ]
+            potential_dirs = [item for item in extracted_items if os.path.isdir(os.path.join(temp_dir, item))]
 
             source_content_path = None
             if len(potential_dirs) == 1:
@@ -189,19 +188,13 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
                 matching_dirs = [d for d in potential_dirs if d.startswith(repo_name)]
                 if len(matching_dirs) == 1:
                     source_content_path = os.path.join(temp_dir, matching_dirs[0])
-                    logger.warning(
-                        f"Multiple directories found, heuristically selected: {source_content_path}"
-                    )
+                    logger.warning(f"Multiple directories found, heuristically selected: {source_content_path}")
                 else:
-                    logger.error(
-                        f"Could not uniquely determine the extracted content directory among multiple options in {temp_dir}. Contents: {extracted_items}"
-                    )
+                    logger.error(f"Could not uniquely determine the extracted content directory among multiple options in {temp_dir}. Contents: {extracted_items}")
                     return False
             else:
                 # If no directory was found after extraction (unexpected)
-                logger.error(
-                    f"No directory found after extraction in {temp_dir}. Contents: {extracted_items}"
-                )
+                logger.error(f"No directory found after extraction in {temp_dir}. Contents: {extracted_items}")
                 return False
 
             # 7. Call the original archiving function with the path to the extracted source code

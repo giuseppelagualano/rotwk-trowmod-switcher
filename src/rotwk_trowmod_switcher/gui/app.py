@@ -10,12 +10,7 @@ from tkinter import filedialog, messagebox, scrolledtext
 import customtkinter as ctk
 from PIL import Image
 
-# --- Core Imports ---
-# Note: Assuming 'src' is in PYTHONPATH or handled by the execution context
-from core.big_archiver.archiver import (
-    create_big_archives,
-)
-from core.config import (  # Import app name if used in paths/messages
+from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/messages
     __APP_NAME__,
     __APP_VERSION__,
     APPDATA_FOLDER,
@@ -28,18 +23,33 @@ from core.config import (  # Import app name if used in paths/messages
     ROTWK_CONTENT_KEY,
     UPDATE_INFO_FILE_NAME,
 )
-from core.mod_retriever import update_rotwk_with_latest_mod
-from core.switcher_updater import (
+
+# --- Core Imports ---
+# Note: Assuming 'src' is in PYTHONPATH or handled by the execution context
+from rotwk_trowmod_switcher.core.big_archiver.archiver import (
+    create_big_archives,
+)
+from rotwk_trowmod_switcher.core.mod_retriever import update_rotwk_with_latest_mod
+from rotwk_trowmod_switcher.core.switcher_updater import (
     check_for_updates,
     download_update,
     trigger_update_restart,
 )
-from core.utils import is_admin, load_config, resource_path, save_config
-from core.windows_utils import find_rotwk_install_path, windows_notify
+from rotwk_trowmod_switcher.core.utils import (
+    is_admin,
+    load_config,
+    resource_path,
+    save_config,
+)
+from rotwk_trowmod_switcher.core.windows_utils import (
+    find_rotwk_install_path,
+    windows_notify,
+)
 
 # --- GUI Theme/Constants Import ---
 from .theme import (
     APP_TITLE,
+    BG_IMG_FILE_PATH,
     BUTTON_PRIMARY_BG,
     BUTTON_PRIMARY_BORDER,
     BUTTON_PRIMARY_HOVER,
@@ -48,6 +58,8 @@ from .theme import (
     BUTTON_TERTIARY_BG,
     BUTTON_TEXT_SECONDARY,
     FLAG_FONT,
+    GAME_IMG_FILE_PATH,
+    ICON_FILE_PATH,
     INITIAL_WINDOW_SIZE,
     PRIMARY_BUTTON_FONT,
     SECONDARY_BUTTON_FONT,
@@ -59,9 +71,7 @@ from .theme import (
 # --- Logger Setup ---
 # Logger is configured in main.py, get the existing logger instance
 logger = logging.getLogger(__name__)
-log_format = (
-    "%(asctime)s - %(levelname)s - %(message)s"  # Define format needed for handler
-)
+log_format = "%(asctime)s - %(levelname)s - %(message)s"  # Define format needed for handler
 
 # Global variable for the root window - necessary for schedule_gui_update
 root = None
@@ -81,13 +91,11 @@ def show_changelog_if_exists():
     update_info_path = os.path.join(APPDATA_FOLDER, UPDATE_INFO_FILE_NAME)
 
     if os.path.exists(update_info_path):  # Check file existence directly
-        logger.info(
-            f"Update info file found at '{update_info_path}'. Attempting to display changelog."
-        )
+        logger.info(f"Update info file found at '{update_info_path}'. Attempting to display changelog.")
         version = "N/A"
         notes = "Could not read update notes."  # Default message
         try:
-            with open(update_info_path, "r", encoding="utf-8") as f:
+            with open(update_info_path, encoding="utf-8") as f:
                 update_data = json.load(f)
             version = update_data.get("version", version)
             # Get the raw notes text, strip leading/trailing whitespace
@@ -113,9 +121,7 @@ def show_changelog_if_exists():
                 f"Could not read update notes for version {version}.\nThe update info file was corrupted.",
             )
         except Exception as e:
-            logger.error(
-                f"Failed to read, parse or display update info file: {e}", exc_info=True
-            )
+            logger.error(f"Failed to read, parse or display update info file: {e}", exc_info=True)
             schedule_gui_update(
                 messagebox.showerror,
                 "Changelog Error",
@@ -128,9 +134,7 @@ def show_changelog_if_exists():
                     os.remove(update_info_path)
                     logger.info(f"Removed update info file: {update_info_path}")
                 except OSError as e:
-                    logger.error(
-                        f"Failed to remove update info file '{update_info_path}': {e}"
-                    )
+                    logger.error(f"Failed to remove update info file '{update_info_path}': {e}")
 
 
 # --- Helper Function for GUI Updates from Threads ---
@@ -144,9 +148,7 @@ def schedule_gui_update(callback, *args):
     if root and root.winfo_exists():
         root.after(0, callback, *args)
     else:
-        logger.warning(
-            f"Warning: Attempted to schedule GUI update but root window no longer exists. Callback: {callback}"
-        )
+        logger.warning(f"Warning: Attempted to schedule GUI update but root window no longer exists. Callback: {callback}")
 
 
 # --- GUI Update Functions ---
@@ -157,12 +159,9 @@ def update_flag(success):
     if success:
         flag_label.configure(text="Update completed!", text_color="green")
         # Run notification in a separate thread to avoid blocking
-        thread = threading.Thread(target=windows_notify, args=("Update completed!",))
-        thread.start()
+        windows_notify("Update completed!", "You can now launch the game")
     else:
-        flag_label.configure(
-            text="ERROR!! Please, see the logs below!", text_color="red"
-        )
+        flag_label.configure(text="ERROR!! Please, see the logs below!", text_color="red")
 
 
 def set_buttons_state(new_state):
@@ -192,22 +191,16 @@ def clear_log():
 def update_progress_handler(downloaded_bytes, total_bytes, percent):
     """Placeholder for showing download progress in the GUI"""
     if total_bytes > 0:
-        logger.debug(
-            f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)"
-        )
+        logger.debug(f"Downloading update: {downloaded_bytes} / {total_bytes} ({percent:.1f}%)")
         # Example: schedule_gui_update(my_progress_bar.set, percent / 100.0)
     else:
-        logger.debug(
-            f"Downloading update: {downloaded_bytes} bytes (total size unknown)"
-        )
+        logger.debug(f"Downloading update: {downloaded_bytes} bytes (total size unknown)")
 
 
 def _perform_update_download_and_restart(url, latest_v, release_notes):
     """Handles the download and restart process."""
     logger.info("Starting update download...")
-    flag_label.configure(
-        text="Downloading update...", text_color="yellow"
-    )  # Optional status update
+    flag_label.configure(text="Downloading update...", text_color="yellow")  # Optional status update
 
     downloaded_path = download_update(url, progress_callback=update_progress_handler)
 
@@ -277,17 +270,13 @@ def perform_update_check(show_no_update_message=False):
         logger.info("Running update check in background thread...")
         try:
             # Pass the correct repo for the *application itself*
-            is_update, latest_v, url, release_notes = (
-                check_for_updates()
-            )  # Uses UPDATER_GITHUB_REPO from config
+            is_update, latest_v, url, release_notes = check_for_updates()  # Uses UPDATER_GITHUB_REPO from config
 
             if is_update and url:
                 logger.info(f"Update available: Version {latest_v}")
                 schedule_gui_update(ask_user_to_update, latest_v, url, release_notes)
             elif is_update and not url:
-                logger.warning(
-                    "Update check found a new version, but no download URL for the .exe asset."
-                )
+                logger.warning("Update check found a new version, but no download URL for the .exe asset.")
                 if show_no_update_message:
                     schedule_gui_update(
                         messagebox.showinfo,
@@ -317,9 +306,7 @@ def _run_remote_update_thread(repo_full_name, game_path):
     success = False
     try:
         logger.info(f"Starting remote update thread for {repo_full_name}...")
-        success = update_rotwk_with_latest_mod(
-            repo_full_name=repo_full_name, game_path=game_path
-        )
+        success = update_rotwk_with_latest_mod(repo_full_name=repo_full_name, game_path=game_path)
         if success:
             logger.info("Remote update thread finished successfully.")
         else:
@@ -363,9 +350,7 @@ def on_remote_update_click():
 
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
-        logger.critical(
-            "Could not find RoTWK installation path. Update cannot continue."
-        )
+        logger.critical("Could not find RoTWK installation path. Update cannot continue.")
         flag_label.configure(text="Error: RoTWK Path Invalid", text_color="red")
         return
 
@@ -378,14 +363,10 @@ def on_remote_update_click():
     )
 
     set_buttons_state("disabled")
-    flag_label.configure(
-        text="Update running...", text_color="yellow"
-    )  # Indicate running
+    flag_label.configure(text="Update running...", text_color="yellow")  # Indicate running
 
     repo_full_name = f"{REPO_OWNER}/{REPO_NAME}"  # Mod repo
-    thread = threading.Thread(
-        target=_run_remote_update_thread, args=(repo_full_name, rotwk_path), daemon=True
-    )
+    thread = threading.Thread(target=_run_remote_update_thread, args=(repo_full_name, rotwk_path), daemon=True)
     thread.start()
 
 
@@ -398,24 +379,14 @@ def on_local_update_click():
 
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
-        logger.critical(
-            "Could not find RoTWK installation path. Update cannot continue."
-        )
-        flag_label.configure(
-            text="Error: RoTWK installation path cannot be empty!", text_color="red"
-        )
+        logger.critical("Could not find RoTWK installation path. Update cannot continue.")
+        flag_label.configure(text="Error: RoTWK installation path cannot be empty!", text_color="red")
         return
 
     source_content_path = local_path_entry.get()
-    if (
-        not source_content_path
-        or source_content_path == "Insert DEV Mod folder path here"
-        or not os.path.isdir(source_content_path)
-    ):
+    if not source_content_path or source_content_path == "Insert DEV Mod folder path here" or not os.path.isdir(source_content_path):
         logger.error("Local content path is empty or invalid. Update cannot proceed.")
-        flag_label.configure(
-            text="Error: Local path cannot be empty or is invalid!", text_color="red"
-        )
+        flag_label.configure(text="Error: Local path cannot be empty or is invalid!", text_color="red")
         return
 
     logger.info(f"Using local content path: {source_content_path}")
@@ -428,9 +399,7 @@ def on_local_update_click():
     )
 
     set_buttons_state("disabled")
-    flag_label.configure(
-        text="Update running...", text_color="yellow"
-    )  # Indicate running
+    flag_label.configure(text="Update running...", text_color="yellow")  # Indicate running
 
     thread = threading.Thread(
         target=_run_local_update_thread,
@@ -464,9 +433,7 @@ def browse_local_dev_path():
     """Opens a dialog to browse for the local DEV mod folder path."""
     if not local_path_entry:
         return
-    directory = filedialog.askdirectory(
-        title="Select Local DEV Mod Folder (containing data, arts, lang)"
-    )
+    directory = filedialog.askdirectory(title="Select Local DEV Mod Folder (containing data, arts, lang)")
     if directory:
         normalized_path = os.path.normpath(directory)
         local_path_entry.delete(0, ctk.END)
@@ -512,9 +479,7 @@ def on_launch_game_click():
         logger.info("Game launch command issued.")
     except OSError as e:
         logger.error(f"OS Error launching game: {e}", exc_info=True)
-        messagebox.showerror(
-            "Launch Error", f"Operating system error while launching the game:\n{e}"
-        )
+        messagebox.showerror("Launch Error", f"Operating system error while launching the game:\n{e}")
     except Exception as e:
         logger.error(f"Unexpected error launching game: {e}", exc_info=True)
         messagebox.showerror(
@@ -562,9 +527,7 @@ def setup_logging_to_text_widget():
     text_handler.setFormatter(logging.Formatter(log_format))
     root_logger.addHandler(text_handler)
     # Ensure the root logger level is appropriate (e.g., INFO)
-    if (
-        not root_logger.hasHandlers()
-    ):  # Set level only if no handlers exist (likely set in main.py now)
+    if not root_logger.hasHandlers():  # Set level only if no handlers exist (likely set in main.py now)
         root_logger.setLevel(logging.INFO)
 
 
@@ -583,7 +546,7 @@ def run_gui():
     root.geometry(INITIAL_WINDOW_SIZE)
 
     try:
-        root.iconbitmap(resource_path("src/assets/bg_ai_gen.ico"))
+        root.iconbitmap(resource_path(ICON_FILE_PATH))
     except Exception as e:
         logger.error(f"Failed to set window icon: {e}")
     root.title(f"{APP_TITLE} - v.{__APP_VERSION__}")
@@ -591,13 +554,13 @@ def run_gui():
     # Load background image
     try:
         bg_image = ctk.CTkImage(
-            light_image=Image.open(resource_path("src/assets/bg_ai_gen.jpeg")),
-            dark_image=Image.open(resource_path("src/assets/bg_ai_gen.jpeg")),
+            light_image=Image.open(resource_path(BG_IMG_FILE_PATH)),
+            dark_image=Image.open(resource_path(BG_IMG_FILE_PATH)),
             size=(1000, 900),
         )
         game_ico = ctk.CTkImage(
-            light_image=Image.open(resource_path("src/assets/game_icon.png")),
-            dark_image=Image.open(resource_path("src/assets/game_icon.png")),
+            light_image=Image.open(resource_path(GAME_IMG_FILE_PATH)),
+            dark_image=Image.open(resource_path(GAME_IMG_FILE_PATH)),
             size=(32, 32),
         )
         background_label = ctk.CTkLabel(root, image=bg_image, text="")
@@ -620,9 +583,7 @@ def run_gui():
         font=("Arial", 16, "bold"),
     )
     remote_heading_label.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
-    rotwk_path_label = ctk.CTkLabel(
-        main_frame, text="RoTWK Installation Path:", font=TEXT_FONT
-    )
+    rotwk_path_label = ctk.CTkLabel(main_frame, text="RoTWK Installation Path:", font=TEXT_FONT)
     rotwk_path_label.grid(row=1, column=0, padx=20, pady=(5, 0), sticky="w")
 
     remote_frame = ctk.CTkFrame(main_frame)
@@ -667,9 +628,7 @@ def run_gui():
     remote_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
 
     # --- LOCAL UPDATE SECTION ---
-    local_heading_label = ctk.CTkLabel(
-        main_frame, text="Local Update (Test Local Changes)", font=("Arial", 16, "bold")
-    )
+    local_heading_label = ctk.CTkLabel(main_frame, text="Local Update (Test Local Changes)", font=("Arial", 16, "bold"))
     local_heading_label.grid(row=3, column=0, padx=20, pady=(15, 5), sticky="w")
 
     local_frame = ctk.CTkFrame(main_frame)
@@ -718,15 +677,9 @@ def run_gui():
     flag_frame.grid_columnconfigure(0, weight=1)  # Label takes available space
 
     is_admin_flag = is_admin()
-    flag_text = (
-        "Administrator privileges verified."
-        if is_admin_flag
-        else "ERROR! Please, run the software as admin."
-    )
+    flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
     flag_color = "green" if is_admin_flag else "red"
-    flag_label = ctk.CTkLabel(
-        flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color
-    )
+    flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
     flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
     launch_game_button = ctk.CTkButton(

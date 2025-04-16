@@ -1,8 +1,10 @@
 # config.py
 import os
 
+import pkg_resources
+
 __APP_NAME__ = "rotwk-trowmod-switcher"
-__APP_VERSION__ = "3.2.0"
+__APP_VERSION__ = pkg_resources.require("rotwk_trowmod_switcher")[0].version
 UPDATER_GITHUB_REPO = "giuseppelagualano/rotwk-trowmod-switcher"
 
 # --- Archive Settings ---

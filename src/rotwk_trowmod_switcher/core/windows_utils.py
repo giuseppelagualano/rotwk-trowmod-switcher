@@ -2,30 +2,36 @@
 import logging
 import winreg
 from pathlib import Path
-from typing import List, Optional
 
-from win11toast import toast
+from windows_toasts import (
+    Toast,
+    ToastDisplayImage,
+    ToastImage,
+    ToastImagePosition,
+    WindowsToaster,
+)
 
-from core.utils import resource_path
-from gui.theme import APP_TITLE
+from rotwk_trowmod_switcher.core.utils import resource_path
+from rotwk_trowmod_switcher.gui.theme import APP_TITLE, ICON_FILE_PATH
 
 # Make sure to import REGISTRY_PATHS_ROTWK from config if needed directly,
 # or pass it as an argument from the GUI layer. Passing as argument is cleaner.
 
 logger = logging.getLogger(__name__)
 
-
-def windows_notify(body: str):
-    toast(
-        body=body,
-        title=APP_TITLE,
-        icon=resource_path("src/assets/bg_ai_gen.ico"),
-        audio="ms-winsoundevent:Notification.Looping.Alarm",
-        duration="long",
-    )
+# Setup toast notifier
+toaster = WindowsToaster(APP_TITLE)
+toastImage = ToastImage(resource_path(ICON_FILE_PATH))
+toastDP_logo = ToastDisplayImage(toastImage, altText="App logo", position=ToastImagePosition.AppLogo, circleCrop=True)
+newToast = Toast(images=(toastDP_logo,))
 
 
-def find_rotwk_install_path(registry_paths: List[str]) -> Optional[Path]:
+def windows_notify(title: str, message: str):
+    newToast.text_fields = [title, message]
+    toaster.show_toast(newToast)
+
+
+def find_rotwk_install_path(registry_paths: list[str]) -> Path | None:
     """
     Attempts to find the RoTWK installation path in the Windows Registry.
 
@@ -49,37 +55,25 @@ def find_rotwk_install_path(registry_paths: List[str]) -> Optional[Path]:
                         logger.info(f"Found RoTWK installation path: {install_path}")
                         return install_location_str
                     else:
-                        logger.warning(
-                            f"Registry path found ('{install_location_str}'), but it's not a valid directory."
-                        )
+                        logger.warning(f"Registry path found ('{install_location_str}'), but it's not a valid directory.")
                 except FileNotFoundError:
                     logger.warning(f"'InstallPath' value not found in key: {path_str}")
                 except Exception as e:
-                    logger.error(
-                        f"Error reading value from key {path_str}: {e}", exc_info=True
-                    )
+                    logger.error(f"Error reading value from key {path_str}: {e}", exc_info=True)
                 finally:
-                    if (
-                        "key" in locals()
-                    ):  # Ensure key was successfully opened before trying to close
+                    if "key" in locals():  # Ensure key was successfully opened before trying to close
                         winreg.CloseKey(key)
             except FileNotFoundError:
                 logger.debug(f"Registry key not found: HKEY_LOCAL_MACHINE\\{path_str}")
                 continue
             except Exception as e:
-                logger.error(
-                    f"Error opening registry key {path_str}: {e}", exc_info=True
-                )
+                logger.error(f"Error opening registry key {path_str}: {e}", exc_info=True)
             finally:
-                if (
-                    "hklm" in locals()
-                ):  # Ensure connection was successful before trying to close
+                if "hklm" in locals():  # Ensure connection was successful before trying to close
                     winreg.CloseKey(hklm)
         except Exception as e:
             logger.error(f"Failed to connect to HKEY_LOCAL_MACHINE: {e}", exc_info=True)
             break
 
-    logger.warning(
-        "RoTWK installation path not found in any specified registry locations."
-    )
+    logger.warning("RoTWK installation path not found in any specified registry locations.")
     return None

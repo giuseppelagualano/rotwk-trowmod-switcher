@@ -1,0 +1,73 @@
+# pyproject.toml
+
+[build-system]
+# Standard build system requirements for packages using setuptools
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Core project metadata
+name = "rotwk_trowmod_switcher"           # The name used by pip and importlib.metadata
+version = "3.3.0"                   # <<< YOUR SINGLE SOURCE OF TRUTH FOR VERSION >>>
+description = "Updater and local builder for TROWMod for RotWK."
+readme = "README.md"                  # Link to your README file
+license = { file = "LICENSE" }        # Reference the LICENSE file (make sure LICENSE exists)
+requires-python = ">=3.13"             # Minimum Python version supported
+authors = [
+    { name = "Giuseppe La Gualano", email = "info.giuseppelagualano@gmail.com" }, # Optional: Add author info
+]
+
+# Runtime dependencies needed for the application to run
+dependencies = [
+    "customtkinter>=5.2.0",         # GUI Framework
+    "darkdetect>=0.8.0",            # For dark mode detection used by customtkinter
+    "pillow>=10.0.0",               # Image handling for GUI assets
+    "pyBIG>=0.5.0",                 # Creating RotWK archives
+    "pywin32>=306",                 # Windows API access (used by registry, utils etc.)
+    "pywin32-ctypes>=0.2.0",        # Windows API access via ctypes
+    "win11toast>=0.35",             # Used in core.utils for notifications
+    "winsdk>=1.0.0b10",             # Dependency for win11toast
+    "windows-toasts>=1.3.0",
+    "certifi>=2025.1.31",
+    # 'packaging' might be needed if you use version.parse() etc. directly elsewhere,
+    # but often installed by other tools if needed. Add back if necessary.
+]
+
+[project.optional-dependencies]
+# Development dependencies: tools for linting, formatting, building, testing etc.
+# Install with: pip install .[dev]
+dev = [
+    "pre-commit>=2.0.0",            # For managing pre-commit hooks
+    "pyinstaller>=6.0.0",           # For building the .exe
+    "pyinstaller-hooks-contrib",    # Extra hooks for PyInstaller if needed
+    "ruff>=0.5.0",                  # Linter and formatter
+    "black>=24.0.0",                # Opinionated code formatter
+    "isort>=5.10.0",                # Import sorter
+    "toml>=0.10.0",                 # Needed for the build script if using Python < 3.11
+    # Add pytest here if you add tests: "pytest>=7.0.0", "pytest-mock>=3.10.0"
+]
+
+# --- Tool Configurations ---
+# These sections tell the tools how to behave, reading config from here
+# instead of separate config files (like .isort.cfg, .style.yapf etc.)
+
+[tool.ruff]
+# Base configuration for the Ruff linter (https://docs.astral.sh/ruff/settings/)
+line-length = 180 # Match black's default
+# Select rule categories: E/W (pycodestyle), F (pyflakes), I (isort), UP (pyupgrade)
+select = ["E", "F", "W", "I", "UP"]
+ignore = [] # Add specific rules to ignore if needed
+
+[tool.ruff.format]
+# Configuration for ruff's formatter (optional, aims for black compatibility)
+# docstring-code-format = true # Example option
+
+[tool.black]
+# Configuration for the Black code formatter (https://black.readthedocs.io/en/stable/usage_and_configuration/)
+line-length = 180
+# target-version = ['py39'] # Optional: Specify target Python versions if needed
+
+[tool.isort]
+# Configuration for the isort import sorter (https://pycqa.github.io/isort/docs/configuration/config_files/)
+profile = "black" # Ensure compatibility with Black
+line_length = 180

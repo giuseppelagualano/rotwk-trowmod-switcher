@@ -1,19 +1,11 @@
 # src/main.py
 import logging
-import os
 import sys
-
-# --- Add src directory to Python path ---
-# This allows importing 'core' and 'gui' directly.
-# Adjust if your execution context handles this differently.
-src_path = os.path.dirname(os.path.abspath(__file__))
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
 
 # --- Import the GUI application runner ---
 try:
-    from core.config import __APP_NAME__  # Get app name for logger
-    from gui.app import run_gui
+    from rotwk_trowmod_switcher.config import __APP_NAME__  # Get app name for logger
+    from rotwk_trowmod_switcher.gui.app import run_gui
 except ImportError as e:
     # Basic fallback if imports fail (e.g., structure not created yet)
     print(
@@ -21,7 +13,8 @@ except ImportError as e:
         file=sys.stderr,
     )
     print(f"Details: {e}", file=sys.stderr)
-    sys.exit(1)
+    k = input("press to close")
+    # sys.exit(1)
 
 # --- Basic Logging Setup (before GUI starts) ---
 # Configure basic console logging until the GUI handler takes over
@@ -36,9 +29,7 @@ if __name__ == "__main__":
         run_gui()  # Call the function that builds and runs the GUI
         logger.info("GUI main loop exited.")
     except Exception as e:
-        logger.critical(
-            f"An unhandled exception occurred in the GUI: {e}", exc_info=True
-        )
+        logger.critical(f"An unhandled exception occurred in the GUI: {e}", exc_info=True)
         # Consider showing a simple error message box here if possible,
         # although tkinter might not be available if run_gui failed early.
-        sys.exit(1)  # Exit with error code
+        # sys.exit(1)  # Exit with error code

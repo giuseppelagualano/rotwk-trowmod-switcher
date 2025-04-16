@@ -76,5 +76,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## How to create the exe:
 ```
-python -m PyInstaller .\main.spec
+pip install -e .[dev]
+python scripts/update_rc_version.py && python -m PyInstaller --clean main.spec
 ```

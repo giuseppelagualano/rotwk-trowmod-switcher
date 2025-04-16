@@ -2,24 +2,23 @@
 import logging
 import shutil
 import tempfile
-from typing import Any, Callable, Dict, List, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from pyBIG import Archive
 
-from core.big_archiver.costants import (
+from rotwk_trowmod_switcher.core.big_archiver.costants import (
     DEFAULT_ARTS_ARCHIVE_NAME,
     DEFAULT_DATA1_ARCHIVE_NAME,
     DEFAULT_INI_ARCHIVE_NAME,
     DEFAULT_ITLANG_ARCHIVE_NAME,
 )
-from core.utils import remove_trailing_slashes
+from rotwk_trowmod_switcher.core.utils import remove_trailing_slashes
 
 logger = logging.getLogger(__name__)
 
 
-def create_trowmod_ini_big_archive(
-    source_dir_path: str, output_dir_path: str, archive_name: str
-) -> bool:
+def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/" + archive_name
@@ -28,9 +27,7 @@ def create_trowmod_ini_big_archive(
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
         with tempfile.TemporaryDirectory(prefix="pybig_ini_") as temp_staging_dir_str:
-            logger.debug(
-                f"Using temporary directory for staging ini archive: {temp_staging_dir_str}"
-            )
+            logger.debug(f"Using temporary directory for staging ini archive: {temp_staging_dir_str}")
 
             logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
             shutil.copytree(
@@ -40,9 +37,7 @@ def create_trowmod_ini_big_archive(
             )
             logger.debug("Copy complete.")
 
-            logger.info(
-                f"Creating INI BIG archive from directory: {temp_staging_dir_str}"
-            )
+            logger.info(f"Creating INI BIG archive from directory: {temp_staging_dir_str}")
 
             archive = Archive.from_directory(temp_staging_dir_str)
 
@@ -57,15 +52,11 @@ def create_trowmod_ini_big_archive(
         logger.error(f"OS error during archive creation: {e}", exc_info=True)
         return False
     except Exception as e:
-        logger.error(
-            f"An unexpected error occurred during archive creation: {e}", exc_info=True
-        )
+        logger.error(f"An unexpected error occurred during archive creation: {e}", exc_info=True)
         return False
 
 
-def create_trowmod_arts_big_archive(
-    source_dir_path: str, output_dir_path: str, archive_name: str
-) -> bool:
+def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/" + archive_name
@@ -77,19 +68,13 @@ def create_trowmod_arts_big_archive(
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
         with tempfile.TemporaryDirectory(prefix="pybig_arts_") as temp_staging_dir_str:
-            logger.debug(
-                f"Using temporary directory for staging arts archive: {temp_staging_dir_str}"
-            )
+            logger.debug(f"Using temporary directory for staging arts archive: {temp_staging_dir_str}")
 
             logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
-            shutil.copytree(
-                source_dir_path + "/arts", temp_staging_dir_str, dirs_exist_ok=True
-            )
+            shutil.copytree(source_dir_path + "/arts", temp_staging_dir_str, dirs_exist_ok=True)
             logger.debug("Copy complete.")
 
-            logger.info(
-                f"Creating Arts BIG archive from directory: {temp_staging_dir_str}"
-            )
+            logger.info(f"Creating Arts BIG archive from directory: {temp_staging_dir_str}")
 
             archive = Archive.from_directory(temp_staging_dir_str)
 
@@ -104,15 +89,11 @@ def create_trowmod_arts_big_archive(
         logger.error(f"OS error during archive creation: {e}", exc_info=True)
         return False
     except Exception as e:
-        logger.error(
-            f"An unexpected error occurred during archive creation: {e}", exc_info=True
-        )
+        logger.error(f"An unexpected error occurred during archive creation: {e}", exc_info=True)
         return False
 
 
-def create_trowmod_itlang_big_archive(
-    source_dir_path: str, output_dir_path: str, archive_name: str
-) -> bool:
+def create_trowmod_itlang_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/lang/" + archive_name
@@ -121,19 +102,13 @@ def create_trowmod_itlang_big_archive(
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
         with tempfile.TemporaryDirectory(prefix="pybig_lang_") as temp_staging_dir_str:
-            logger.debug(
-                f"Using temporary directory for staging arts archive: {temp_staging_dir_str}"
-            )
+            logger.debug(f"Using temporary directory for staging arts archive: {temp_staging_dir_str}")
 
             logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
-            shutil.copytree(
-                source_dir_path + "/lang", temp_staging_dir_str, dirs_exist_ok=True
-            )
+            shutil.copytree(source_dir_path + "/lang", temp_staging_dir_str, dirs_exist_ok=True)
             logger.debug("Copy complete.")
 
-            logger.info(
-                f"Creating IT Lang BIG archive from directory: {temp_staging_dir_str}"
-            )
+            logger.info(f"Creating IT Lang BIG archive from directory: {temp_staging_dir_str}")
 
             archive = Archive.from_directory(temp_staging_dir_str)
 
@@ -148,15 +123,11 @@ def create_trowmod_itlang_big_archive(
         logger.error(f"OS error during archive creation: {e}", exc_info=True)
         return False
     except Exception as e:
-        logger.error(
-            f"An unexpected error occurred during archive creation: {e}", exc_info=True
-        )
+        logger.error(f"An unexpected error occurred during archive creation: {e}", exc_info=True)
         return False
 
 
-def create_trowmod_data1_big_archive(
-    source_dir_path: str, output_dir_path: str, archive_name: str
-) -> bool:
+def create_trowmod_data1_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/" + archive_name
@@ -165,19 +136,13 @@ def create_trowmod_data1_big_archive(
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
         with tempfile.TemporaryDirectory(prefix="pybig_data1_") as temp_staging_dir_str:
-            logger.debug(
-                f"Using temporary directory for staging arts archive: {temp_staging_dir_str}"
-            )
+            logger.debug(f"Using temporary directory for staging arts archive: {temp_staging_dir_str}")
 
             logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
-            shutil.copytree(
-                source_dir_path + "/scripts", temp_staging_dir_str, dirs_exist_ok=True
-            )
+            shutil.copytree(source_dir_path + "/scripts", temp_staging_dir_str, dirs_exist_ok=True)
             logger.debug("Copy complete.")
 
-            logger.info(
-                f"Creating Data1 BIG archive from directory: {temp_staging_dir_str}"
-            )
+            logger.info(f"Creating Data1 BIG archive from directory: {temp_staging_dir_str}")
 
             archive = Archive.from_directory(temp_staging_dir_str)
 
@@ -192,15 +157,13 @@ def create_trowmod_data1_big_archive(
         logger.error(f"OS error during archive creation: {e}", exc_info=True)
         return False
     except Exception as e:
-        logger.error(
-            f"An unexpected error occurred during archive creation: {e}", exc_info=True
-        )
+        logger.error(f"An unexpected error occurred during archive creation: {e}", exc_info=True)
         return False
 
 
 def execute_and_log_operations(
-    operations: List[Tuple[Callable[..., bool], Dict[str, Any]]],
-    common_args: Dict[str, Any],
+    operations: list[tuple[Callable[..., bool], dict[str, Any]]],
+    common_args: dict[str, Any],
     logger_instance: logging.Logger,
     start_message: str = "Starting operations...",
     success_message: str = "All operations completed successfully.",
@@ -238,9 +201,7 @@ def execute_and_log_operations(
                 logger_instance.warning(f"Operation {func.__name__} failed.")
                 all_successful = False
         except Exception as e:
-            logger_instance.error(
-                f"Exception during operation {func.__name__}: {e}", exc_info=True
-            )
+            logger_instance.error(f"Exception during operation {func.__name__}: {e}", exc_info=True)
             results.append(False)
             all_successful = False
             # You might decide to break here if a critical operation fails
@@ -255,9 +216,7 @@ def execute_and_log_operations(
 
 
 # --- How to use the new function (example based on your code) ---
-def create_big_archives(
-    source_content_path: str, game_path: str, logger: logging.Logger
-) -> bool:
+def create_big_archives(source_content_path: str, game_path: str, logger: logging.Logger) -> bool:
     """
     Creates the necessary .big archives using the generic function.
     """
