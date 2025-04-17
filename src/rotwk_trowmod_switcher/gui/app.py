@@ -5,12 +5,14 @@ import os
 import subprocess
 import sys
 import threading
+import tkinter
 from tkinter import filedialog, messagebox, scrolledtext
 
 import customtkinter as ctk
 import psutil
 from PIL import Image
 
+from rotwk_trowmod_switcher import config
 from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/messages
     __APP_NAME__,
     __APP_VERSION__,
@@ -32,7 +34,7 @@ from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/
 from rotwk_trowmod_switcher.core.big_archiver.archiver import (
     create_big_archives,
 )
-from rotwk_trowmod_switcher.core.mod_retriever import update_rotwk_with_latest_mod
+from rotwk_trowmod_switcher.core.mod_retriever import get_latest_release_tag, update_rotwk_with_latest_mod
 from rotwk_trowmod_switcher.core.switcher_updater import (
     check_for_updates,
     download_update,
@@ -142,17 +144,35 @@ def show_changelog_if_exists():
 
 
 # --- Helper Function for GUI Updates from Threads ---
-def schedule_gui_update(callback, *args):
+def schedule_gui_update(callback, *args, **kwargs):
     """
-    Schedules a function to run safely in the main GUI thread using root.after().
+    Schedules a function to run safely in the main GUI thread using root.after(),
+    passing both positional and keyword arguments. Includes error handling for
+    calls made after the main loop has stopped.
+
     Args:
         callback: The function to call in the main thread.
-        *args: Arguments to pass to the callback function.
+        *args: Positional arguments for the callback.
+        **kwargs: Keyword arguments for the callback.
     """
     if root and root.winfo_exists():
-        root.after(0, callback, *args)
+        try:
+            # Pass *args and **kwargs to the callback via root.after
+            root.after(0, lambda: callback(*args, **kwargs))
+        except tkinter.TclError as e:
+            # This likely means the main loop is stopping or has stopped.
+            # Log to stderr or a file logger instead of the GUI console.
+            if "application has been destroyed" in str(e).lower() or "main thread is not in main loop" in str(e).lower():  # Check common TclError messages
+                print(f"Debug: Suppressed GUI update after main loop exit for {callback.__name__}", file=sys.stderr)
+            else:
+                # Log other unexpected TclErrors
+                logger.warning(f"TclError scheduling GUI update for {callback.__name__}: {e}", exc_info=False)  # exc_info=False to avoid recursive logging loop
+        except Exception as e:
+            # Catch any other unexpected errors during scheduling
+            logger.error(f"Unexpected error scheduling GUI update for {callback.__name__}: {e}", exc_info=False)
     else:
-        logger.warning(f"Warning: Attempted to schedule GUI update but root window no longer exists. Callback: {callback}")
+        # Use f-string for logging
+        logger.debug(f"Debug: GUI update ignored as root window no longer exists. Callback: {callback.__name__}")
 
 
 # --- GUI Update Functions ---
@@ -161,11 +181,11 @@ def update_flag(success):
     if not flag_label:
         return  # Guard against missing widget
     if success:
-        flag_label.configure(text="Update completed!", text_color="green")
+        schedule_gui_update(flag_label.configure, text="Update completed!", text_color="green")
         # Run notification in a separate thread to avoid blocking
         windows_notify("Update completed!", "You can now launch the game")
     else:
-        flag_label.configure(text="ERROR!! Please, see the logs below!", text_color="red")
+        schedule_gui_update(flag_label.configure, text="ERROR!! Please, see the logs below!", text_color="red")
 
 
 def set_buttons_state(new_state):
@@ -195,7 +215,7 @@ def clear_log():
 def _perform_update_download_and_restart(url, latest_v, release_notes):
     """Handles the download and restart process."""
     logger.info("Starting update download...")
-    flag_label.configure(text="Downloading update...", text_color="yellow")  # Optional status update
+    schedule_gui_update(flag_label.configure, text="Downloading update...", text_color="yellow")  # Optional status update
 
     downloaded_path = download_update(url)
 
@@ -262,7 +282,7 @@ def perform_update_check(show_no_update_message=False):
     """Checks for updates and prompts the user if one is found."""
 
     def check_thread_target():
-        logger.info("Running update check in background thread...")
+        logger.info("Running update check...")
         try:
             # Pass the correct repo for the *application itself*
             is_update, latest_v, url, release_notes = check_for_updates()  # Uses UPDATER_GITHUB_REPO from config
@@ -291,8 +311,7 @@ def perform_update_check(show_no_update_message=False):
         except Exception as e:
             logger.error(f"Error during update check thread: {e}", exc_info=True)
 
-    thread = threading.Thread(target=check_thread_target, daemon=True)
-    thread.start()
+    check_thread_target()
 
 
 # --- Worker Thread Target Functions ---
@@ -304,6 +323,7 @@ def _run_remote_update_thread(repo_full_name, game_path):
         success = update_rotwk_with_latest_mod(repo_full_name=repo_full_name, game_path=game_path)
         if success:
             logger.info("Remote update thread finished successfully.")
+            update_mod_version_display(game_path)
         else:
             logger.error("Remote update thread failed.")
     except Exception as e:
@@ -327,6 +347,7 @@ def _run_local_update_thread(source_dir_path, output_dir_path):
 
         if success:
             logger.info("Local update thread finished successfully.")
+            update_mod_version_display(output_dir_path)
         else:
             logger.error("Local update thread failed.")
     except Exception as e:
@@ -347,7 +368,7 @@ def on_remote_update_click():
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
         logger.critical("Could not find RoTWK installation path. Update cannot continue.")
-        flag_label.configure(text="Error: RoTWK Path Invalid", text_color="red")
+        schedule_gui_update(flag_label.configure, text="Error: RoTWK Path Invalid", text_color="red")
         return
 
     # Save the confirmed/entered path
@@ -359,7 +380,7 @@ def on_remote_update_click():
     )
 
     set_buttons_state("disabled")
-    flag_label.configure(text="Update running...", text_color="yellow")  # Indicate running
+    schedule_gui_update(flag_label.configure, text="Update running...", text_color="yellow")  # Indicate running
 
     repo_full_name = f"{REPO_OWNER}/{REPO_NAME}"  # Mod repo
     thread = threading.Thread(target=_run_remote_update_thread, args=(repo_full_name, rotwk_path), daemon=True)
@@ -371,18 +392,17 @@ def on_local_update_click():
     if not rotwk_path_entry or not local_path_entry or not flag_label:
         return
     logger.info("Local update started!")
-    flag_label.configure(text="Waiting for update...", text_color="white")
 
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
         logger.critical("Could not find RoTWK installation path. Update cannot continue.")
-        flag_label.configure(text="Error: RoTWK installation path cannot be empty!", text_color="red")
+        schedule_gui_update(flag_label.configure, text="Error: RoTWK installation path cannot be empty!", text_color="red")
         return
 
     source_content_path = local_path_entry.get()
     if not source_content_path or source_content_path == "Insert DEV Mod folder path here" or not os.path.isdir(source_content_path):
         logger.error("Local content path is empty or invalid. Update cannot proceed.")
-        flag_label.configure(text="Error: Local path cannot be empty or is invalid!", text_color="red")
+        schedule_gui_update(flag_label.configure, text="Error: Local path cannot be empty or is invalid!", text_color="red")
         return
 
     logger.info(f"Using local content path: {source_content_path}")
@@ -395,7 +415,7 @@ def on_local_update_click():
     )
 
     set_buttons_state("disabled")
-    flag_label.configure(text="Update running...", text_color="yellow")  # Indicate running
+    schedule_gui_update(flag_label.configure, text="Update running...", text_color="yellow")  # Indicate running
 
     thread = threading.Thread(
         target=_run_local_update_thread,
@@ -423,6 +443,7 @@ def browse_rotwk_path():
             ROTWK_CONTENT_KEY,
             normalized_path,
         )
+        update_mod_version_display(normalized_path)
 
 
 def browse_local_dev_path():
@@ -535,6 +556,104 @@ def on_kill_game_click():
         logger.error(f"An error occurred while searching for processes: {search_err}", exc_info=True)
 
 
+# --- Define Helper Function ---
+def update_mod_version_display(game_dir_path):
+    """Reads trowmod_version.json from game_dir_path and updates the GUI label."""
+    global mod_version_label
+    if not mod_version_label:  # Check if label widget exists
+        logger.debug("mod_version_label widget not ready yet.")
+        return
+
+    version = "Unknown"
+    color = BUTTON_TEXT_SECONDARY  # Default color (e.g., gray)
+    version_file_path = ""
+
+    if not game_dir_path or game_dir_path == "NOT FOUND!" or not os.path.isdir(game_dir_path):
+        logger.debug(f"Invalid game directory path for version check: {game_dir_path}")
+        version = "N/A (Set RoTWK Path)"
+        color = "orange"
+    else:
+        try:
+            # Use the constant defined in mod_retriever (or define it here too)
+            # from core.mod_retriever import VERSION_MARKER_FILENAME # Option 1: Import
+            VERSION_MARKER_FILENAME = "trowmod_version.json"  # Option 2: Redefine
+
+            version_file_path = os.path.join(game_dir_path, VERSION_MARKER_FILENAME)
+            logger.debug(f"Checking for mod version file at: {version_file_path}")
+
+            if os.path.exists(version_file_path):
+                with open(version_file_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                version = data.get("version", "Error: Key Missing")
+                if version != "Error: Key Missing":
+                    color = TEXT_PRIMARY  # Success color (e.g., main text color)
+                    logger.info(f"Found installed mod version: {version}")
+                else:
+                    color = "red"
+                    logger.error(f"'version' key missing in {version_file_path}")
+
+            else:
+                logger.info(f"Mod version file not found at {version_file_path}.")
+                version = "Unknown (Update Mod?)"
+                color = "orange"  # Indicate file not found
+
+        except json.JSONDecodeError:
+            logger.error(f"Error decoding JSON from {version_file_path}.", exc_info=True)
+            version = "Error: Corrupt File"
+            color = "red"
+        except OSError as e:
+            logger.error(f"Error reading version file {version_file_path}: {e}", exc_info=True)
+            version = "Error: Read Failed"
+            color = "red"
+        except Exception as e:
+            logger.error(f"Unexpected error checking mod version: {e}", exc_info=True)
+            version = "Error"
+            color = "red"
+
+    # Schedule GUI update for the label
+    schedule_gui_update(mod_version_label.configure, text=f"Installed Mod Version: {version}", text_color=color)
+
+
+def fetch_and_display_latest_mod_version():
+    """Fetches the latest mod tag from GitHub and updates the GUI label."""
+    global latest_mod_available_label
+    if not latest_mod_available_label:
+        return  # Label not ready
+
+    logger.info("Checking for latest available mod version...")
+    schedule_gui_update(latest_mod_available_label.configure, text="Latest Available: Checking...")
+
+    mod_repo_full_name = f"{config.REPO_OWNER}/{config.REPO_NAME}"  # Get mod repo from config
+    latest_tag = None
+    error_msg = None
+
+    try:
+        # This function handles the network request and basic error logging
+        latest_tag = get_latest_release_tag(mod_repo_full_name)
+    except Exception as e:
+        # Catch potential exceptions from the underlying function if needed,
+        # though get_latest_release_tag should handle basic network errors.
+        logger.error(f"Error calling get_latest_release_tag: {e}", exc_info=True)
+        error_msg = "Error checking"
+
+    # Update GUI based on result
+    if latest_tag:
+        logger.info(f"Latest available mod version found: {latest_tag}")
+        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {latest_tag}", text_color=TEXT_PRIMARY)
+    elif error_msg:
+        logger.warning("Could not determine latest available mod version due to error.")
+        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {error_msg}", text_color="orange")
+    else:
+        logger.warning("Could not determine latest available mod version (no tag found?).")
+        schedule_gui_update(latest_mod_available_label.configure, text="Latest Available: Not Found", text_color="orange")
+
+
+def start_fetch_latest_mod_version_thread():
+    """Starts the background thread to fetch the latest mod version."""
+    fetch_thread = threading.Thread(target=fetch_and_display_latest_mod_version, daemon=True)
+    fetch_thread.start()
+
+
 # --- Logging Setup for GUI Console ---
 class TextHandler(logging.Handler):
     """Custom logging handler to redirect logs to the Tkinter Text widget"""
@@ -584,6 +703,7 @@ def run_gui():
     global root, log_console, flag_label, remote_update_button, local_update_button
     global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
+    global latest_mod_available_label, mod_version_label
 
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("dark-blue")
@@ -623,13 +743,21 @@ def run_gui():
     # Configure rows as before...
     main_frame.grid_rowconfigure(6, weight=1)  # Log Frame row needs weight to expand
 
-    # --- REMOTE UPDATE SECTION ---
-    remote_heading_label = ctk.CTkLabel(
-        main_frame,
-        text="Remote Update (Latest Official Mod)",
-        font=("Arial", 16, "bold"),
-    )
+    # --- REMOTE UPDATE HEADING AND VERSION (Row 0) ---
+    remote_heading_label = ctk.CTkLabel(main_frame, text="Remote Update (Latest Official Mod)", font=("Arial", 16, "bold"))
     remote_heading_label.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
+
+    # Place mod version label in column 2, aligned right within its cell
+    global mod_version_label
+    mod_version_label = ctk.CTkLabel(main_frame, text="Installed Mod Version: Checking...")
+    # Note: Initial text might be updated shortly after by update_mod_version_display
+    mod_version_label.grid(row=0, column=0, padx=(0, 20), pady=(15, 5), sticky="e")
+
+    # --- LATEST AVAILABLE VERSION LABEL (Row 1) ---
+    global latest_mod_available_label
+    latest_mod_available_label = ctk.CTkLabel(main_frame, text="Latest Available: Checking...")
+    latest_mod_available_label.grid(row=0, column=0, padx=(0, 20), pady=(45, 0), sticky="e")
+
     rotwk_path_label = ctk.CTkLabel(main_frame, text="RoTWK Installation Path:", font=TEXT_FONT)
     rotwk_path_label.grid(row=1, column=0, padx=20, pady=(5, 0), sticky="w")
 
@@ -806,6 +934,9 @@ def run_gui():
 
     # Perform initial update check (silent unless update found)
     perform_update_check(show_no_update_message=False)
+
+    update_mod_version_display(loaded_rotwk_path)
+    start_fetch_latest_mod_version_thread()
 
     root.mainloop()
 
