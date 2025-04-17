@@ -84,6 +84,7 @@ flag_label = None
 remote_update_button = None
 local_update_button = None
 launch_game_button = None
+kill_game_button = None
 browse_button_remote = None
 browse_button_local = None
 rotwk_path_entry = None
@@ -175,6 +176,7 @@ def set_buttons_state(new_state):
         launch_game_button,
         browse_button_remote,
         browse_button_local,
+        kill_game_button,
     ]
     for widget in widgets:
         if widget:  # Check if widget exists
@@ -579,7 +581,7 @@ def setup_logging_to_text_widget():
 def run_gui():
     """Creates and runs the main application window."""
     global root, log_console, flag_label, remote_update_button, local_update_button
-    global launch_game_button, browse_button_remote, browse_button_local
+    global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
 
     ctk.set_appearance_mode("dark")
