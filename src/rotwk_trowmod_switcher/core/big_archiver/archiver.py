@@ -1,5 +1,7 @@
 # core/archiver.py
+import json
 import logging
+import os
 import shutil
 import tempfile
 from collections.abc import Callable
@@ -7,6 +9,7 @@ from typing import Any
 
 from pyBIG import Archive
 
+from rotwk_trowmod_switcher.config import VERSION_MARKER_FILENAME
 from rotwk_trowmod_switcher.core.big_archiver.costants import (
     DEFAULT_ARTS_ARCHIVE_NAME,
     DEFAULT_DATA1_ARCHIVE_NAME,
@@ -216,7 +219,7 @@ def execute_and_log_operations(
 
 
 # --- How to use the new function (example based on your code) ---
-def create_big_archives(source_content_path: str, game_path: str, logger: logging.Logger) -> bool:
+def create_big_archives(source_content_path: str, game_path: str, logger: logging.Logger, mod_version: str) -> bool:
     """
     Creates the necessary .big archives using the generic function.
     """
@@ -250,5 +253,25 @@ def create_big_archives(source_content_path: str, game_path: str, logger: loggin
         success_message="Archives creation reported success.",
         failure_message="Archives creation reported failure.",
     )
+
+    if success:
+        # --- Write the version marker file as JSON ---
+        marker_file_path = os.path.join(game_path, VERSION_MARKER_FILENAME)
+        logger.info(f"Writing version marker JSON to: {marker_file_path}")
+        try:
+            # Prepare data as a dictionary
+            version_data = {
+                "version": mod_version,
+            }
+            # Write dictionary as JSON
+            with open(marker_file_path, "w", encoding="utf-8") as f:
+                json.dump(version_data, f, indent=4, ensure_ascii=False)  # Use indent for readability
+            logger.info("Version marker JSON file written successfully.")
+        except OSError as e:
+            logger.error(f"Failed to write version marker JSON file '{marker_file_path}': {e}", exc_info=True)
+            return False
+        except Exception as e:
+            logger.error(f"An unexpected error occurred writing version marker JSON: {e}", exc_info=True)
+            return False
 
     return success

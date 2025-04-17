@@ -322,6 +322,7 @@ def _run_local_update_thread(source_dir_path, output_dir_path):
             source_content_path=source_dir_path,
             game_path=output_dir_path,
             logger=logger,
+            mod_version="LOCAL",
         )
 
         if success:

@@ -203,6 +203,7 @@ def update_rotwk_with_latest_mod(repo_full_name: str, game_path: str) -> bool:
                     source_content_path=source_content_path,
                     game_path=game_path,
                     logger=logger,
+                    mod_version=latest_tag,
                 )
 
             else:
