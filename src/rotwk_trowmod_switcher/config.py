@@ -6,6 +6,8 @@ import pkg_resources
 __APP_NAME__ = "rotwk-trowmod-switcher"
 __APP_VERSION__ = pkg_resources.require("rotwk_trowmod_switcher")[0].version
 UPDATER_GITHUB_REPO = "giuseppelagualano/rotwk-trowmod-switcher"
+GAME_EXE_NAME = "lotrbfme2ep1.exe"
+GAME_PROCESS_NAME = "game.dat"
 
 # --- Archive Settings ---
 REPO_OWNER = "SymoniusGit"

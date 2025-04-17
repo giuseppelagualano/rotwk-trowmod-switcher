@@ -8,6 +8,7 @@ import threading
 from tkinter import filedialog, messagebox, scrolledtext
 
 import customtkinter as ctk
+import psutil
 from PIL import Image
 
 from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/messages
@@ -16,6 +17,8 @@ from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/
     APPDATA_FOLDER,
     CONFIG_FILE_NAME,
     CONFIG_PATH_SECTION,
+    GAME_EXE_NAME,
+    GAME_PROCESS_NAME,
     LOCAL_CONTENT_KEY,
     REGISTRY_PATHS_ROTWK,
     REPO_NAME,
@@ -452,14 +455,13 @@ def on_launch_game_click():
         )
         return
 
-    game_exe_name = "lotrbfme2ep1.exe"
-    full_game_exe_path = os.path.join(rotwk_path, game_exe_name)
+    full_game_exe_path = os.path.join(rotwk_path, GAME_EXE_NAME)
 
     if not os.path.exists(full_game_exe_path):
         logger.error(f"Game executable not found at: {full_game_exe_path}")
         messagebox.showerror(
             "Launch Error",
-            f"Could not find the game executable:\n{game_exe_name}\n\nIn the specified path:\n{rotwk_path}",
+            f"Could not find the game executable:\n{GAME_EXE_NAME}\n\nIn the specified path:\n{rotwk_path}",
         )
         return
 
@@ -476,6 +478,58 @@ def on_launch_game_click():
             "Launch Error",
             f"An unexpected error occurred while launching the game:\n{e}",
         )
+
+
+def on_kill_game_click():
+    """
+    Attempts to find and forcefully terminate the RotWK game process.
+    """
+    process_found = False
+    logger.info(f"Attempting to kill process: {GAME_PROCESS_NAME}")
+
+    try:
+        # Iterate over all running processes
+        for proc in psutil.process_iter(["pid", "name"]):
+            if proc.info["name"].lower() == GAME_PROCESS_NAME.lower():
+                process_found = True
+                pid = proc.info["pid"]
+                logger.info(f"Found process {GAME_PROCESS_NAME} with PID {pid}. Attempting to kill.")
+                try:
+                    process_to_kill = psutil.Process(pid)
+                    process_to_kill.kill()  # Forceful termination (SIGKILL/TerminateProcess)
+                    # Check if it actually terminated (kill might take a moment)
+                    try:
+                        process_to_kill.wait(timeout=0.5)  # Wait briefly
+                    except psutil.TimeoutExpired:
+                        logger.warning(f"Process {pid} did not terminate instantly after kill signal.")
+                        # Could try terminate() first then kill() for more grace, but user asked for kill
+                    except psutil.NoSuchProcess:
+                        pass  # Process already gone, good.
+
+                    # Re-check if process still exists after attempting kill
+                    if not psutil.pid_exists(pid):
+                        logger.info(f"Process {pid} successfully terminated.")
+                        break  # Exit loop once killed
+                    else:
+                        logger.error(f"Attempted to kill process {pid}, but it still exists.")
+                        break  # Exit loop
+
+                except psutil.NoSuchProcess:
+                    logger.warning(f"Process {pid} disappeared before kill could be completed.")
+                    break
+                except psutil.AccessDenied:
+                    logger.error(f"Access denied when trying to kill process {pid}. Try running as administrator.")
+                    messagebox.showerror("Error", "Access denied when trying to kill the game process.\nPlease ensure this switcher is running as Administrator.")
+                    break
+                except Exception as kill_err:
+                    logger.error(f"An unexpected error occurred while killing process {pid}: {kill_err}", exc_info=True)
+                    break
+
+        if not process_found:
+            logger.info(f"Process {GAME_PROCESS_NAME} not found running.")
+
+    except Exception as search_err:
+        logger.error(f"An error occurred while searching for processes: {search_err}", exc_info=True)
 
 
 # --- Logging Setup for GUI Console ---
@@ -664,7 +718,10 @@ def run_gui():
     # --- STATUS FLAG & LAUNCH ---
     flag_frame = ctk.CTkFrame(main_frame)
     flag_frame.grid(row=5, column=0, padx=20, pady=(10, 10), sticky="ew")
+    # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Launch
     flag_frame.grid_columnconfigure(0, weight=1)  # Label takes available space
+    flag_frame.grid_columnconfigure(1, weight=0)  # Kill button fixed width
+    flag_frame.grid_columnconfigure(2, weight=0)  # Launch button fixed width
 
     is_admin_flag = is_admin()
     flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
@@ -672,6 +729,22 @@ def run_gui():
     flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
     flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
+    # --- Kill Game button --- #
+    kill_game_button = ctk.CTkButton(
+        flag_frame,
+        text="Kill Game",
+        font=TERTIARY_BUTTON_FONT,
+        command=on_kill_game_click,
+        fg_color="#6c1f0e",  # Dark red color
+        hover_color="#B22222",  # Firebrick hover
+        text_color="white",
+        border_color="#FF6347",  # Tomato border? Or keep it dark
+        border_width=1,
+        width=120,
+    )
+    kill_game_button.grid(row=0, column=1, padx=(5, 5), pady=5, sticky="e")  # Align East
+
+    # --- Launch Game button --- #
     launch_game_button = ctk.CTkButton(
         flag_frame,
         text="Launch Game",
@@ -684,7 +757,7 @@ def run_gui():
         border_width=1,
         width=120,
     )
-    launch_game_button.grid(row=0, column=1, padx=(5, 10), pady=5, sticky="e")
+    launch_game_button.grid(row=0, column=2, padx=(0, 10), pady=5, sticky="e")
 
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame)

@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 # Core project metadata
 name = "rotwk_trowmod_switcher"           # The name used by pip and importlib.metadata
-version = "3.3.1"                   # <<< YOUR SINGLE SOURCE OF TRUTH FOR VERSION >>>
+version = "3.4.0"                   # <<< YOUR SINGLE SOURCE OF TRUTH FOR VERSION >>>
 description = "Updater and local builder for TROWMod for RotWK."
 readme = "README.md"                  # Link to your README file
 license = { file = "LICENSE" }        # Reference the LICENSE file (make sure LICENSE exists)
@@ -29,6 +29,7 @@ dependencies = [
     "winsdk>=1.0.0b10",             # Dependency for win11toast
     "windows-toasts>=1.3.0",
     "certifi>=2025.1.31",
+    "psutil>=7.0.0",
     # 'packaging' might be needed if you use version.parse() etc. directly elsewhere,
     # but often installed by other tools if needed. Add back if necessary.
 ]

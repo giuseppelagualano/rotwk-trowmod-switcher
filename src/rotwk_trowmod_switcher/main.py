@@ -13,8 +13,7 @@ except ImportError as e:
         file=sys.stderr,
     )
     print(f"Details: {e}", file=sys.stderr)
-    k = input("press to close")
-    # sys.exit(1)
+    sys.exit(1)
 
 # --- Basic Logging Setup (before GUI starts) ---
 # Configure basic console logging until the GUI handler takes over
@@ -32,4 +31,4 @@ if __name__ == "__main__":
         logger.critical(f"An unhandled exception occurred in the GUI: {e}", exc_info=True)
         # Consider showing a simple error message box here if possible,
         # although tkinter might not be available if run_gui failed early.
-        # sys.exit(1)  # Exit with error code
+        sys.exit(1)  # Exit with error code
