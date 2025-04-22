@@ -34,6 +34,7 @@ from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/
 from rotwk_trowmod_switcher.core.big_archiver.archiver import (
     create_big_archives,
 )
+from rotwk_trowmod_switcher.core.mod_manager import remove_mod_files
 from rotwk_trowmod_switcher.core.mod_retriever import get_latest_release_tag, update_rotwk_with_latest_mod
 from rotwk_trowmod_switcher.core.switcher_updater import (
     check_for_updates,
@@ -83,6 +84,7 @@ root = None
 # Global vars for widgets that need updating from callbacks/threads
 log_console = None
 flag_label = None
+disable_mod_button = None
 remote_update_button = None
 local_update_button = None
 launch_game_button = None
@@ -197,6 +199,7 @@ def set_buttons_state(new_state):
         browse_button_remote,
         browse_button_local,
         kill_game_button,
+        remove_mod_button,
     ]
     for widget in widgets:
         if widget:  # Check if widget exists
@@ -654,6 +657,77 @@ def start_fetch_latest_mod_version_thread():
     fetch_thread.start()
 
 
+def _run_remove_mod_thread(rotwk_path):
+    """Target function for the remove mod worker thread."""
+    success = False
+    try:
+        success = remove_mod_files(rotwk_path, logger)
+
+        if success:
+            logger.info("Mod removal thread finished successfully.")
+            # Schedule GUI updates from the thread
+            schedule_gui_update(flag_label.configure, text="Mod removed successfully!", text_color="green")
+            schedule_gui_update(update_mod_version_display, rotwk_path)
+            schedule_gui_update(windows_notify, "Mod Removed", f"The mod has been removed from {os.path.basename(rotwk_path)}.")
+        else:
+            logger.error("Mod removal thread failed (core function returned False). Check logs.")
+            schedule_gui_update(flag_label.configure, text="ERROR removing mod! See logs.", text_color="red")
+            schedule_gui_update(messagebox.showerror, "Removal Error", "An error occurred while removing the mod files. Please check the logs.")
+
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred in remove mod thread: {e}")
+        success = False
+        schedule_gui_update(flag_label.configure, text="FATAL ERROR removing mod! See logs.", text_color="red")
+        schedule_gui_update(messagebox.showerror, "Removal Error", f"An unexpected error occurred: {e}")
+    finally:
+        schedule_gui_update(set_buttons_state, "normal")
+
+
+def on_remove_mod_click():
+    """Handles the click event for the Remove Mod button."""
+    global rotwk_path_entry, flag_label  # Use the correct global 'remove_mod_button' if needed directly
+
+    if not rotwk_path_entry or not flag_label:
+        logger.warning("Remove Mod clicked but required widgets are missing.")
+        return
+
+    rotwk_path = rotwk_path_entry.get()
+
+    # 1. Validate Path
+    if not rotwk_path or rotwk_path == "NOT FOUND!" or not os.path.isdir(rotwk_path):
+        logger.error("Invalid RotWK path provided for removing mod.")
+        schedule_gui_update(flag_label.configure, text="Error: RoTWK Path Invalid", text_color="red")
+        messagebox.showerror(
+            "Removal Error",
+            "The Rise of the Witch-king installation path is invalid or not set. Cannot remove mod.",
+        )
+        return
+
+    # 2. Ask for Confirmation
+    confirm = messagebox.askyesno(
+        "Confirm Mod Removal",
+        f"Are you sure you want to remove the mod files from:\n"
+        f"'{rotwk_path}'?\n\n"
+        "This action will attempt to revert the game to its state before the mod was applied.\n"
+        "Make sure the game is not running.",
+        icon="warning",
+    )
+
+    # 3. Check Confirmation Result
+    if not confirm:
+        logger.info("User cancelled mod removal.")
+        return
+
+    # 4. Start Background Thread if Confirmed
+    logger.info(f"User confirmed. Starting remove mod thread for: {rotwk_path}")
+    set_buttons_state("disabled")
+    schedule_gui_update(flag_label.configure, text="Removing mod...", text_color="yellow")
+
+    # Create and start the daemon thread
+    thread = threading.Thread(target=_run_remove_mod_thread, args=(rotwk_path,), daemon=True)
+    thread.start()
+
+
 # --- Logging Setup for GUI Console ---
 class TextHandler(logging.Handler):
     """Custom logging handler to redirect logs to the Tkinter Text widget"""
@@ -703,7 +777,7 @@ def run_gui():
     global root, log_console, flag_label, remote_update_button, local_update_button
     global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
-    global latest_mod_available_label, mod_version_label
+    global latest_mod_available_label, mod_version_label, remove_mod_button
 
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("dark-blue")
@@ -846,7 +920,8 @@ def run_gui():
     )
     local_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
 
-    # --- STATUS FLAG & LAUNCH ---
+    # --- STATUS FLAG & LAUNCH (Row 5) ---
+    # REVERT this section to its original state (before adding disable_mod_button here)
     flag_frame = ctk.CTkFrame(main_frame)
     flag_frame.grid(row=5, column=0, padx=20, pady=(10, 10), sticky="ew")
     # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Launch
@@ -858,28 +933,28 @@ def run_gui():
     flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
     flag_color = "green" if is_admin_flag else "red"
     flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
-    flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+    flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")  # Column 0
 
-    # --- Kill Game button --- #
+    # --- Kill Game button --- # (Back to Column 1)
     kill_game_button = ctk.CTkButton(
         flag_frame,
         text="Kill Game",
         font=TERTIARY_BUTTON_FONT,
         command=on_kill_game_click,
-        fg_color="#6c1f0e",  # Dark red color
-        hover_color="#B22222",  # Firebrick hover
+        fg_color="#6c1f0e",
+        hover_color="#B22222",
         text_color="white",
-        border_color="#FF6347",  # Tomato border? Or keep it dark
+        border_color="#FF6347",
         border_width=1,
         width=120,
     )
-    kill_game_button.grid(row=0, column=1, padx=(5, 5), pady=5, sticky="e")  # Align East
+    kill_game_button.grid(row=0, column=1, padx=(5, 5), pady=5, sticky="e")  # Column 1
 
-    # --- Launch Game button --- #
+    # --- Launch Game button --- # (Back to Column 2)
     launch_game_button = ctk.CTkButton(
         flag_frame,
         text="Launch Game",
-        image=game_ico,
+        image=game_ico,  # Make sure game_ico is loaded earlier
         font=SECONDARY_BUTTON_FONT,
         command=on_launch_game_click,
         fg_color="#1c2c2c",
@@ -888,7 +963,7 @@ def run_gui():
         border_width=1,
         width=120,
     )
-    launch_game_button.grid(row=0, column=2, padx=(0, 10), pady=5, sticky="e")
+    launch_game_button.grid(row=0, column=2, padx=(0, 10), pady=5, sticky="e")  # Column 2
 
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame)
@@ -910,6 +985,25 @@ def run_gui():
     log_console.configure(bg="#2B2B2B", fg="#DCE4EE", insertbackground="#DCE4EE")
     log_console.grid(row=1, column=0, padx=10, pady=(0, 5), sticky="nsew")
 
+    # --- Buttons in the Log Frame (Row 2) ---
+
+    # --- Remove Mod button --- #
+    remove_mod_button = ctk.CTkButton(
+        log_frame,
+        text="Remove Mod",
+        font=TERTIARY_BUTTON_FONT,
+        command=on_remove_mod_click,
+        fg_color="#505050",
+        hover_color="#686868",
+        text_color="#D0D0D0",
+        border_color="#404040",
+        border_width=1,
+        width=120,
+    )
+    # Column 1 for Remove Mod button
+    remove_mod_button.grid(row=2, column=0, padx=10, pady=(5, 10), sticky="w")  # sticky="e" aligns right within the cell
+
+    # Clear Log button
     clear_log_button = ctk.CTkButton(
         log_frame,
         text="Clear Log",
