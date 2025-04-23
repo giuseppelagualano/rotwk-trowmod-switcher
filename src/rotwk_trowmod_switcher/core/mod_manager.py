@@ -74,6 +74,17 @@ def remove_mod_files(game_path: str, logger: logging.Logger) -> bool:
             logger.info(f"Target not found (already removed?): '{full_path}'")
             # This does not count as a failure
 
+    # Restore asset.dat if it was disabled
+    asset_path = os.path.join(game_path, "asset.dat.disabled")
+    if os.path.exists(asset_path):
+        try:
+            logger.info(f"Restoring '{asset_path}' to 'asset.dat'")
+            os.replace(asset_path, os.path.join(game_path, "asset.dat"))
+            logger.info("Successfully restored asset.dat")
+        except Exception as e:
+            logger.error(f"Error while restoring asset.dat.disabled: {e}")
+            all_removed_successfully = False
+
     # Final log based on the flag
     if all_removed_successfully:
         logger.info("Mod file removal completed successfully (or files were not present).")

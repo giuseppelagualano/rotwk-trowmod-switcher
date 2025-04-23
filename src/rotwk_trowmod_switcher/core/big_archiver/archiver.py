@@ -64,7 +64,13 @@ def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, 
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/" + archive_name
 
-    logger.info("Update asset.dat...")
+    logger.info("Disable old asset.dat renaming it to asset.dat.disabled...")
+    try:
+        os.replace(output_dir_path + "/asset.dat", output_dir_path + "/asset.dat.disabled")
+    except FileNotFoundError:
+        logger.warning("asset.dat not found, skipping renaming.")
+
+    logger.info("Insert new asset.dat from mod...")
     shutil.copyfile(source_dir_path + "/arts/asset.dat", output_dir_path + "/asset.dat")
 
     try:
