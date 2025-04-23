@@ -4,7 +4,9 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from pyBIG import Archive
@@ -224,11 +226,11 @@ def execute_and_log_operations(
     return all_successful
 
 
-# --- How to use the new function (example based on your code) ---
 def create_big_archives(source_content_path: str, game_path: str, logger: logging.Logger, mod_version: str) -> bool:
     """
-    Creates the necessary .big archives using the generic function.
+    Creates the necessary .big archives using the generic function, parallelizing the operations while keeping logs ordered.
     """
+    start_time = time.time()  # Start the timer
     # Define the operations to execute
     archive_operations = [
         (create_trowmod_ini_big_archive, {"archive_name": DEFAULT_INI_ARCHIVE_NAME}),
@@ -241,7 +243,6 @@ def create_big_archives(source_content_path: str, game_path: str, logger: loggin
             create_trowmod_data1_big_archive,
             {"archive_name": DEFAULT_DATA1_ARCHIVE_NAME},
         ),
-        # Add other operations here if needed
     ]
 
     # Define the common arguments
@@ -250,17 +251,36 @@ def create_big_archives(source_content_path: str, game_path: str, logger: loggin
         "output_dir_path": game_path,
     }
 
-    # Call the generic function
-    success = execute_and_log_operations(
-        operations=archive_operations,
-        common_args=common_arguments,
-        logger_instance=logger,
-        start_message="Proceeding to create the big archives...",
-        success_message="Archives creation reported success.",
-        failure_message="Archives creation reported failure.",
-    )
+    logger.info("Proceeding to create the big archives...")
 
-    if success:
+    results = []
+    all_successful = True
+
+    # Use ThreadPoolExecutor for parallel execution
+    with ThreadPoolExecutor() as executor:
+        future_to_operation = {executor.submit(func, **{**common_arguments, **specific_args}): (func, specific_args) for func, specific_args in archive_operations}
+
+        for future in as_completed(future_to_operation):
+            func, specific_args = future_to_operation[future]
+            try:
+                success = future.result()
+                results.append(success)
+                if success:
+                    logger.info(f"Operation {func.__name__} completed successfully.")
+                else:
+                    logger.warning(f"Operation {func.__name__} failed.")
+                    all_successful = False
+            except Exception as e:
+                logger.error(f"Exception during operation {func.__name__}: {e}", exc_info=True)
+                results.append(False)
+                all_successful = False
+
+    if all_successful:
+        logger.info("Archives creation reported success.")
+    else:
+        logger.error("Archives creation reported failure.")
+
+    if all_successful:
         # --- Write the version marker file as JSON ---
         marker_file_path = os.path.join(game_path, VERSION_MARKER_FILENAME)
         logger.info(f"Writing version marker JSON to: {marker_file_path}")
@@ -280,4 +300,6 @@ def create_big_archives(source_content_path: str, game_path: str, logger: loggin
             logger.error(f"An unexpected error occurred writing version marker JSON: {e}", exc_info=True)
             return False
 
-    return success
+    elapsed_time = time.time() - start_time  # Calculate elapsed time
+    logger.debug(f"Time elapsed for creating big archives: {elapsed_time:.2f} seconds")
+    return all_successful
