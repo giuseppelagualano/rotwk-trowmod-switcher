@@ -18,6 +18,7 @@ from rotwk_trowmod_switcher.core.big_archiver.costants import (
     DEFAULT_INI_ARCHIVE_NAME,
     DEFAULT_ITLANG_ARCHIVE_NAME,
 )
+from rotwk_trowmod_switcher.core.big_archiver.utils import check_duplicate_keys_in_str_file
 from rotwk_trowmod_switcher.core.utils import remove_trailing_slashes
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,15 @@ def create_trowmod_itlang_big_archive(source_dir_path: str, output_dir_path: str
     archive_path = output_dir_path + "/lang/" + archive_name
 
     try:
+        # Check for duplicate keys in the .str file
+        str_file_path = os.path.join(source_dir_path, "lang", "data", "lotr.str")
+        if os.path.exists(str_file_path):
+            logging.info(f"Checking for duplicate keys in: {str_file_path}")
+            duplicate_check_result = check_duplicate_keys_in_str_file(str_file_path)
+            if not duplicate_check_result:
+                logger.error(f"Duplicate keys found in {str_file_path}. Aborting archive creation.")
+                return False
+
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
         with tempfile.TemporaryDirectory(prefix="pybig_lang_") as temp_staging_dir_str:
