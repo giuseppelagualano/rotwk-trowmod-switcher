@@ -20,7 +20,7 @@ from rotwk_trowmod_switcher.config import (  # Import app name if used in paths/
     CONFIG_FILE_NAME,
     CONFIG_PATH_SECTION,
     GAME_EXE_NAME,
-    GAME_PROCESS_NAME,
+    GAME_PROCESS_NAMES,
     LOCAL_CONTENT_KEY,
     REGISTRY_PATHS_ROTWK,
     REPO_NAME,
@@ -509,51 +509,51 @@ def on_launch_game_click():
 
 def on_kill_game_click():
     """
-    Attempts to find and forcefully terminate the RotWK game process.
+    Attempts to find and forcefully terminate the RotWK game processes.
     """
     process_found = False
-    logger.info(f"Attempting to kill process: {GAME_PROCESS_NAME}")
+    logger.info(f"Attempting to kill processes: {GAME_PROCESS_NAMES}")
 
     try:
         # Iterate over all running processes
         for proc in psutil.process_iter(["pid", "name"]):
-            if proc.info["name"].lower() == GAME_PROCESS_NAME.lower():
-                process_found = True
-                pid = proc.info["pid"]
-                logger.info(f"Found process {GAME_PROCESS_NAME} with PID {pid}. Attempting to kill.")
-                try:
-                    process_to_kill = psutil.Process(pid)
-                    process_to_kill.kill()  # Forceful termination (SIGKILL/TerminateProcess)
-                    # Check if it actually terminated (kill might take a moment)
+            for game_process in GAME_PROCESS_NAMES:  # Iterate over the list of process names
+                if proc.info["name"].lower() == game_process.lower():
+                    process_found = True
+                    pid = proc.info["pid"]
+                    logger.info(f"Found process {game_process} with PID {pid}. Attempting to kill.")
                     try:
-                        process_to_kill.wait(timeout=0.5)  # Wait briefly
-                    except psutil.TimeoutExpired:
-                        logger.warning(f"Process {pid} did not terminate instantly after kill signal.")
-                        # Could try terminate() first then kill() for more grace, but user asked for kill
+                        process_to_kill = psutil.Process(pid)
+                        process_to_kill.kill()  # Forceful termination (SIGKILL/TerminateProcess)
+                        # Check if it actually terminated (kill might take a moment)
+                        try:
+                            process_to_kill.wait(timeout=0.5)  # Wait briefly
+                        except psutil.TimeoutExpired:
+                            logger.warning(f"Process {pid} did not terminate instantly after kill signal.")
+                        except psutil.NoSuchProcess:
+                            pass  # Process already gone, good.
+
+                        # Re-check if process still exists after attempting kill
+                        if not psutil.pid_exists(pid):
+                            logger.info(f"Process {pid} successfully terminated.")
+                            break  # Exit loop once killed
+                        else:
+                            logger.error(f"Attempted to kill process {pid}, but it still exists.")
+                            break  # Exit loop
+
                     except psutil.NoSuchProcess:
-                        pass  # Process already gone, good.
-
-                    # Re-check if process still exists after attempting kill
-                    if not psutil.pid_exists(pid):
-                        logger.info(f"Process {pid} successfully terminated.")
-                        break  # Exit loop once killed
-                    else:
-                        logger.error(f"Attempted to kill process {pid}, but it still exists.")
-                        break  # Exit loop
-
-                except psutil.NoSuchProcess:
-                    logger.warning(f"Process {pid} disappeared before kill could be completed.")
-                    break
-                except psutil.AccessDenied:
-                    logger.error(f"Access denied when trying to kill process {pid}. Try running as administrator.")
-                    messagebox.showerror("Error", "Access denied when trying to kill the game process.\nPlease ensure this switcher is running as Administrator.")
-                    break
-                except Exception as kill_err:
-                    logger.error(f"An unexpected error occurred while killing process {pid}: {kill_err}", exc_info=True)
-                    break
+                        logger.warning(f"Process {pid} disappeared before kill could be completed.")
+                        break
+                    except psutil.AccessDenied:
+                        logger.error(f"Access denied when trying to kill process {pid}. Try running as administrator.")
+                        messagebox.showerror("Error", "Access denied when trying to kill the game process.\nPlease ensure this switcher is running as Administrator.")
+                        break
+                    except Exception as kill_err:
+                        logger.error(f"An unexpected error occurred while killing process {pid}: {kill_err}", exc_info=True)
+                        break
 
         if not process_found:
-            logger.info(f"Process {GAME_PROCESS_NAME} not found running.")
+            logger.info(f"No processes from {GAME_PROCESS_NAMES} found running.")
 
     except Exception as search_err:
         logger.error(f"An error occurred while searching for processes: {search_err}", exc_info=True)
