@@ -110,6 +110,21 @@ def create_trowmod_itlang_big_archive(source_dir_path: str, output_dir_path: str
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/lang/" + archive_name
 
+    logger.info("Disabling others Italian language files except audio-related ones and the trowmod file...")
+
+    lang_dir_path = os.path.join(output_dir_path, "lang")
+    try:
+        for file_name in os.listdir(lang_dir_path):
+            if "italian" in file_name.lower() and "audio" not in file_name.lower() and "trowmod" not in file_name.lower() and not file_name.endswith(".disabled"):
+                old_file_path = os.path.join(lang_dir_path, file_name)
+                new_file_path = old_file_path + ".disabled"
+                logger.info(f"Renaming '{old_file_path}' to '{new_file_path}'...")
+                os.rename(old_file_path, new_file_path)
+    except FileNotFoundError:
+        logger.warning(f"Language directory '{lang_dir_path}' not found, skipping renaming.")
+    except OSError as e:
+        logger.error(f"Error while renaming files in '{lang_dir_path}': {e}", exc_info=True)
+
     try:
         # Check for duplicate keys in the .str file
         str_file_path = os.path.join(source_dir_path, "lang", "data", "lotr.str")

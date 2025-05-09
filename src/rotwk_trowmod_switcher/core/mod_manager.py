@@ -85,6 +85,23 @@ def remove_mod_files(game_path: str, logger: logging.Logger) -> bool:
             logger.error(f"Error while restoring asset.dat.disabled: {e}")
             all_removed_successfully = False
 
+    # Restore other Italian language files except audio-related ones and the trowmod file
+    logger.info("Restoring other Italian language files except audio-related ones and the trowmod file...")
+
+    lang_dir_path = os.path.join(game_path, "lang")
+    try:
+        for file_name in os.listdir(lang_dir_path):
+            if "italian" in file_name.lower() and "audio" not in file_name.lower() and "trowmod" not in file_name.lower():
+                disabled_file_path = os.path.join(lang_dir_path, file_name)
+                if disabled_file_path.endswith(".disabled"):
+                    restored_file_path = disabled_file_path[:-9]  # Remove ".disabled" suffix
+                    logger.info(f"Restoring '{disabled_file_path}' to '{restored_file_path}'...")
+                    os.rename(disabled_file_path, restored_file_path)
+    except FileNotFoundError:
+        logger.warning(f"Language directory '{lang_dir_path}' not found, skipping restoration.")
+    except OSError as e:
+        logger.error(f"Error while restoring files in '{lang_dir_path}': {e}", exc_info=True)
+
     # Final log based on the flag
     if all_removed_successfully:
         logger.info("Mod file removal completed successfully (or files were not present).")
