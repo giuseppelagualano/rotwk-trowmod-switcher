@@ -628,7 +628,7 @@ def fetch_and_display_latest_mod_version():
 
     mod_repo_full_name = f"{config.REPO_OWNER}/{config.REPO_NAME}"  # Get mod repo from config
     latest_tag = None
-    error_msg = None
+    error_msg = "Error checking"
 
     try:
         # This function handles the network request and basic error logging
@@ -637,18 +637,14 @@ def fetch_and_display_latest_mod_version():
         # Catch potential exceptions from the underlying function if needed,
         # though get_latest_release_tag should handle basic network errors.
         logger.error(f"Error calling get_latest_release_tag: {e}", exc_info=True)
-        error_msg = "Error checking"
 
     # Update GUI based on result
     if latest_tag:
         logger.info(f"Latest available mod version found: {latest_tag}")
         schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {latest_tag}", text_color=TEXT_PRIMARY)
-    elif error_msg:
-        logger.warning("Could not determine latest available mod version due to error.")
-        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {error_msg}", text_color="orange")
     else:
-        logger.warning("Could not determine latest available mod version (no tag found?).")
-        schedule_gui_update(latest_mod_available_label.configure, text="Latest Available: Not Found", text_color="orange")
+        logger.warning("Could not determine latest available mod version due to error. Check your internet connection or repository status.")
+        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {error_msg}", text_color="orange")
 
 
 def start_fetch_latest_mod_version_thread():

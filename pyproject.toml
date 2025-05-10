@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 # Core project metadata
 name = "rotwk_trowmod_switcher"           # The name used by pip and importlib.metadata
-version = "4.2.3"                   # <<< YOUR SINGLE SOURCE OF TRUTH FOR VERSION >>>
+version = "4.2.4"                   # <<< YOUR SINGLE SOURCE OF TRUTH FOR VERSION >>>
 description = "Updater and local builder for TROWMod for RotWK."
 readme = "README.md"                  # Link to your README file
 license = { file = "LICENSE" }        # Reference the LICENSE file (make sure LICENSE exists)

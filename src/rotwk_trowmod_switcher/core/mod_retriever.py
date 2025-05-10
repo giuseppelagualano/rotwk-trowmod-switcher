@@ -10,6 +10,7 @@ import zipfile
 
 import certifi
 
+from rotwk_trowmod_switcher.config import REQUEST_TIMEOUT
 from rotwk_trowmod_switcher.core.big_archiver.archiver import create_big_archives
 
 # --- Logger Setup ---
@@ -39,7 +40,7 @@ def get_latest_release_tag(repo_full_name: str) -> str:
         ssl_context = ssl.create_default_context(cafile=certifi.where())
 
         request = urllib.request.Request(api_url, headers={"User-Agent": "Python-Urllib-Client"})
-        with urllib.request.urlopen(request, context=ssl_context) as response:
+        with urllib.request.urlopen(request, context=ssl_context, timeout=REQUEST_TIMEOUT) as response:
             # Check for successful response (HTTP 200 OK)
             if response.status == 200:
                 # Read the response body and decode it from bytes to string

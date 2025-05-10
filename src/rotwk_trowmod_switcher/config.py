@@ -27,3 +27,6 @@ CONFIG_PATH_SECTION = "paths"
 LOCAL_CONTENT_KEY = "local_mod_path"
 ROTWK_CONTENT_KEY = "rotwk_game_path"
 VERSION_MARKER_FILENAME = "trowmod_version.json"
+
+# Net requests settings
+REQUEST_TIMEOUT = 30  # seconds
