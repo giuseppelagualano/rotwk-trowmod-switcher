@@ -58,7 +58,8 @@ def find_build_patterns(base_path, gamedata_path):
                             content = f.read()
                             respawnrules_count = len(re.findall(r"^\s*RespawnRules", content, re.MULTILINE))
                             childobject_count = len(re.findall(r"^\s*ChildObject\s+", content, re.MULTILINE))
-                            if respawnrules_count == 0:
+                            hero_type = re.search(r"KindOf\s*=.*HERO", content, re.IGNORECASE)
+                            if respawnrules_count == 0 or not hero_type:
                                 continue
                             if childobject_count >= 1 and respawnrules_count > 1:
                                 rel_path = os.path.relpath(file_path, base_path)
