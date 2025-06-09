@@ -5,13 +5,13 @@ from pathlib import Path
 import pandas as pd
 
 
-def read_xlsx_data(xlsx_path):
+def read_csv_data(csv_path):
     """Read hero tiers and costs from Excel file."""
 
     # Read the "Simone" sheet
-    df = pd.read_excel(xlsx_path, sheet_name="Simone")
-    tier_df = df[["Tier", "Cost", "Time", "Points"]].dropna()
-    heroes_df = df[["Hero Code Name", "HeroTier"]].dropna()
+    df = pd.read_csv(csv_path)
+    tier_df = df[["Tier", "Cost", "Time", "Points"]].dropna(how="all")
+    heroes_df = df[["Hero Code Name", "HeroTier", "fell_beast_name"]].dropna(how="all")
 
     return tier_df, heroes_df
 
@@ -55,7 +55,7 @@ def update_gamedata_defines(gamedata_path, tier_df):
         f.write(content)
 
 
-def update_hero_files(base_path, heroes_df, tier_df):
+def update_hero_files(base_path, fell_beast_path, heroes_df, tier_df):
     """Update hero files with tier-based define references."""
     for root, _, files in os.walk(base_path):
         for file in files:
@@ -110,6 +110,41 @@ def update_hero_files(base_path, heroes_df, tier_df):
                             f.write(content)
                         print(f"Updated {file_path}")
 
+                        # Handle fell beast updates if applicable
+                        try:
+                            fell_beast_name = hero_row["fell_beast_name"].iloc[0]
+                            if pd.notna(fell_beast_name):
+                                with open(fell_beast_path, encoding="ansi") as f:
+                                    fell_beast_content = f.read()
+
+                                # Find the section for this fell beast
+                                fell_beast_section = re.search(f"ChildObject\\s+{fell_beast_name}[\\s\\S]*?(?=\\s*(?:ChildObject|$))", fell_beast_content)
+                                if fell_beast_section:
+                                    updated_section = fell_beast_section.group(0)
+                                    updated_section = re.sub(r"(BuildCost\s*=\s*)[^\s\n]+", f"\\1{cost_define}", updated_section)
+                                    updated_section = re.sub(r"(BuildTime\s*=\s*)[^\s\n]+", f"\\1{time_define}", updated_section)
+                                    updated_section = re.sub(r"(CommandPoints\s*=\s*)[^\s\n]+", f"\\1{cp_define}", updated_section)
+
+                                    # Update RespawnRules if present
+                                    respawn_pattern = r"(RespawnRules\s*=\s*AutoSpawn:No\s*Cost:)\d+(\s*Time:)\d+"
+                                    if re.search(respawn_pattern, updated_section):
+                                        updated_section = re.sub(respawn_pattern, f"\\g<1>{respawn_cost}\\g<2>{respawn_time}", updated_section)
+
+                                    # Update the fell beast file
+                                    fell_beast_content = fell_beast_content.replace(fell_beast_section.group(0), updated_section)
+                                    with open(fell_beast_path, "w", encoding="ansi") as f:
+                                        f.write(fell_beast_content)
+                                    print(f"Updated fell beast {fell_beast_name} in {fell_beast_path}")
+                        except KeyError:
+                            print(f"No fell beast name found for {object_name}, skipping fell beast update.")
+                            exit(1)
+                        except FileNotFoundError:
+                            print(f"Fell beast file not found: {fell_beast_path}, skipping fell beast update.")
+                            exit(1)
+                        except Exception as e:
+                            print(f"Error updating fell beast {fell_beast_name}: {e}")
+                            exit(1)
+
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
                     exit(1)
@@ -117,15 +152,16 @@ def update_hero_files(base_path, heroes_df, tier_df):
 
 def main():
     # Configuration paths
-    xlsx_path = r"C:\Users\giuse\Downloads\BFMEhero.xlsx"
+    csv_path = r"C:\Users\giuse\Downloads\BFMEhero.csv"
     base_path = r"C:\Users\giuse\Documents\GitHub\TROWMod\data\ini\object"
     gamedata_path = r"C:\Users\giuse\Documents\GitHub\TROWMod\data\ini\gamedata.ini"
+    fell_beast_path = r"C:\Users\giuse\Documents\GitHub\TROWMod\data\ini\object\evilfaction\units\mordor\fellbeast.ini"
 
     # Read hero data from CSV
-    tier_df, heroes_df = read_xlsx_data(xlsx_path)
+    tier_df, heroes_df = read_csv_data(csv_path)
 
     update_gamedata_defines(gamedata_path, tier_df)
-    update_hero_files(base_path, heroes_df, tier_df)
+    update_hero_files(base_path, fell_beast_path, heroes_df, tier_df)
 
     print("Hero costs update completed!")
 
