@@ -25,23 +25,31 @@ def update_gamedata_defines(gamedata_path, tier_df):
     with open(gamedata_path, encoding="ansi") as f:
         content = f.read()
 
-    # Create tier defines and update/add them
+    # Create defines dictionary
+    defines = {}
     for _, row in tier_df.iterrows():
         tier_num = int(row["Tier"])
-        defines = {f"TIER_{tier_num}_HERO_BUILDCOST": int(row["Cost"]), f"TIER_{tier_num}_HERO_BUILDTIME": int(row["Time"]), f"TIER_{tier_num}_HERO_CP": int(row["Points"])}
+        defines.update({f"TIER_{tier_num}_HERO_BUILDCOST": int(row["Cost"]), f"TIER_{tier_num}_HERO_BUILDTIME": int(row["Time"]), f"TIER_{tier_num}_HERO_CP": int(row["Points"])})
 
-        for define_name, value in defines.items():
-            pattern = rf"#define\s+{define_name}\s+\d+"
-            replacement = f"#define {define_name} {value}"
+    # Update existing defines or prepare new ones
+    defines_str = ""
+    for define_name, value in defines.items():
+        if f"#define {define_name}" in content:
+            content = re.sub(r"#define {define_name}\s+\d+", f"#define {define_name} {value}", content)
+        else:
+            defines_str += f"#define {define_name} {value}\n"
 
-            if re.search(pattern, content):
-                # Replace existing define
-                content = re.sub(pattern, replacement, content)
-            else:
-                # Add new define at the end
-                content += f"\n{replacement}"
+    # Add new defines if any
+    if defines_str:
+        break_header = ";------------------------BALANCE DATA---------------------------- "
+        new_header = ";------------------------HERO COST DEFINES---------------------------- "
+        parts = content.split(break_header)
 
-    # Write updated content back to file
+        if len(parts) == 2:
+            content = parts[0] + new_header + "\n" + defines_str + "\n" + break_header + parts[1]
+        else:
+            print("Warning: Could not find expected header in gamedata.ini")
+            exit(1)
 
     with open(gamedata_path, "w", encoding="ansi") as f:
         f.write(content)
