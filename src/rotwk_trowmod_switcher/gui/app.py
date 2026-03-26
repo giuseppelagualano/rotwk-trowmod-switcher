@@ -83,6 +83,7 @@ log_format = "%(asctime)s - %(levelname)s - %(message)s"  # Define format needed
 root = None
 # Global vars for widgets that need updating from callbacks/threads
 log_console = None
+log_filter_var = None
 flag_label = None
 disable_mod_button = None
 remote_update_button = None
@@ -93,6 +94,9 @@ browse_button_remote = None
 browse_button_local = None
 rotwk_path_entry = None
 local_path_entry = None
+
+# Global message history
+log_history: list[tuple[str, str]] = []  # (msg, level)
 
 
 def show_changelog_if_exists():
@@ -726,28 +730,61 @@ def on_remove_mod_click():
 
 # --- Logging Setup for GUI Console ---
 class TextHandler(logging.Handler):
-    """Custom logging handler to redirect logs to the Tkinter Text widget"""
+    TAG_COLORS = {
+        "DEBUG": "gray",
+        "INFO": "white",
+        "WARNING": "yellow",
+        "ERROR": "red",
+        "CRITICAL": "red",
+    }
+
+    def _configure_tags(self):
+        for level, color in self.TAG_COLORS.items():
+            log_console.tag_config(level, foreground=color)
 
     def emit(self, record):
         msg = self.format(record)
-        if log_console:  # Check if log_console has been initialized
+        if log_console:
             try:
-                # Schedule log update in the main thread
-                schedule_gui_update(self._update_log_console, msg)
+                schedule_gui_update(self._update_log_console, msg, record.levelname)
             except Exception as e:
-                print(
-                    f"Error updating log console: {e}\nLog message: {msg}",
-                    file=sys.stderr,
-                )  # Fallback print
+                print(f"Error updating log console: {e}\nLog message: {msg}", file=sys.stderr)
 
-    def _update_log_console(self, msg):
+    def _update_log_console(self, msg, level):
         if not log_console or not log_console.winfo_exists():
-            return  # Extra safety check
-        original_state = log_console.cget("state")
-        log_console.configure(state="normal")
-        log_console.insert(ctk.END, msg + "\n")
-        log_console.configure(state=original_state)
-        log_console.see(ctk.END)
+            return
+
+        # Salva nello storico
+        log_history.append((msg, level))
+
+        self._configure_tags()
+
+        # Mostra solo se passa il filtro attivo
+        current_filter = log_filter_var.get()  # "ALL", "INFO", "WARNING", "ERROR"
+        if current_filter == "ALL" or level == current_filter:
+            original_state = log_console.cget("state")
+            log_console.configure(state="normal")
+            log_console.insert("end", msg + "\n", level)
+            log_console.configure(state=original_state)
+            log_console.see("end")
+
+
+def apply_log_filter(*args):
+    """Ridisegna il log console applicando il filtro selezionato."""
+    if not log_console or not log_console.winfo_exists():
+        return
+
+    selected = log_filter_var.get()
+
+    log_console.configure(state="normal")
+    log_console.delete("1.0", "end")
+
+    for msg, level in log_history:
+        if selected == "ALL" or level == selected:
+            log_console.insert("end", msg + "\n", level)
+
+    log_console.configure(state="disabled")
+    log_console.see("end")
 
 
 def setup_logging_to_text_widget():
@@ -770,7 +807,7 @@ def setup_logging_to_text_widget():
 # --- Main GUI Construction Function ---
 def run_gui():
     """Creates and runs the main application window."""
-    global root, log_console, flag_label, remote_update_button, local_update_button
+    global root, log_console, log_filter_var, flag_label, remote_update_button, local_update_button
     global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
     global latest_mod_available_label, mod_version_label, remove_mod_button
@@ -964,11 +1001,27 @@ def run_gui():
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame)
     log_frame.grid(row=6, column=0, padx=10, pady=(10, 10), sticky="nsew")
-    log_frame.grid_rowconfigure(1, weight=1)  # Make text area expand
+    log_frame.grid_rowconfigure(2, weight=1)  # riga 2 ora (console spostata giù)
     log_frame.grid_columnconfigure(0, weight=1)
 
+    # Riga 0: label + filtro sulla stessa riga
     log_label = ctk.CTkLabel(log_frame, text="Log Console:", font=TEXT_FONT)
     log_label.grid(row=0, column=0, sticky="w", pady=(5, 5), padx=10)
+
+    log_filter_var = ctk.StringVar(value="ALL")
+
+    log_filter_menu = ctk.CTkOptionMenu(
+        log_frame,
+        variable=log_filter_var,
+        values=["ALL", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        command=lambda _: apply_log_filter(),
+        width=120,
+        fg_color="#505050",
+        text_color="#D0D0D0",
+        button_color="#505050",
+        button_hover_color="#505050",
+    )
+    log_filter_menu.grid(row=0, column=0, sticky="e", pady=(5, 5), padx=10)
 
     log_console = scrolledtext.ScrolledText(
         log_frame,

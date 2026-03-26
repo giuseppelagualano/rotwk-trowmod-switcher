@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 from collections.abc import Callable
@@ -62,10 +63,55 @@ def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, a
         return False
 
 
+def build_asset_dat(source_dir_path: str) -> bool:
+    exe_path = source_dir_path + "/arts/AssetCacheBuilder.exe"
+    error_log_path = source_dir_path + "/arts/asseterrors.log"
+
+    logger.info(f"Running AssetCacheBuilder.exe from: {exe_path}")
+    try:
+        result = subprocess.run(
+            [exe_path],
+            capture_output=True,
+            text=True,
+            cwd=source_dir_path + "/arts",
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        logger.info(f"AssetCacheBuilder.exe exited with return code: {result.returncode}")
+        if result.stdout:
+            logger.debug(f"AssetCacheBuilder stdout:\n{result.stdout.strip()}")
+        if result.stderr:
+            logger.debug(f"AssetCacheBuilder stderr:\n{result.stderr.strip()}")
+
+    except FileNotFoundError:
+        logger.error(f"AssetCacheBuilder.exe not found at: {exe_path}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error while running AssetCacheBuilder.exe: {e}", exc_info=True)
+        return False
+
+    # Read asseterrors.log
+    try:
+        with open(error_log_path, encoding="utf-8", errors="replace") as f:
+            error_log_content = f.read().strip()
+        if error_log_content:
+            logger.warning(f"asseterrors.log content:\n{error_log_content}")
+        else:
+            logger.info("asseterrors.log is empty, no issues reported.")
+    except FileNotFoundError:
+        logger.info("asseterrors.log not found.")
+    except Exception as e:
+        logger.warning(f"Could not read asseterrors.log: {e}")
+
+    return True
+
+
 def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
     archive_path = output_dir_path + "/" + archive_name
+
+    # Execute AssetCacheBuilder.exe
+    build_asset_dat(source_dir_path=source_dir_path)
 
     logger.info("Disable old asset.dat renaming it to asset.dat.disabled...")
     try:
