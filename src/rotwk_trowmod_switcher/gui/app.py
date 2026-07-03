@@ -95,6 +95,11 @@ browse_button_local = None
 rotwk_path_entry = None
 local_path_entry = None
 
+# Global vars for local update step selection
+local_update_ini_data1_var = None
+local_update_arts_var = None
+local_update_lang_var = None
+
 # Global message history
 log_history: list[tuple[str, str]] = []  # (msg, level)
 
@@ -341,15 +346,19 @@ def _run_remote_update_thread(repo_full_name, game_path):
         schedule_gui_update(set_buttons_state, "normal")
 
 
-def _run_local_update_thread(source_dir_path, output_dir_path):
+def _run_local_update_thread(source_dir_path, output_dir_path, enable_ini_data1, enable_arts, enable_lang):
     """Target function for the local update worker thread."""
     try:
         logger.info(f"Starting local update thread from {source_dir_path}...")
+        logger.info(f"Steps to execute - INI+DATA1: {enable_ini_data1}, ARTS: {enable_arts}, LANG: {enable_lang}")
         success = create_big_archives(
             source_content_path=source_dir_path,
             game_path=output_dir_path,
             logger=logger,
             mod_version="LOCAL",
+            create_ini_data1=enable_ini_data1,
+            create_arts=enable_arts,
+            create_lang=enable_lang,
         )
 
         if success:
@@ -412,6 +421,17 @@ def on_local_update_click():
         schedule_gui_update(flag_label.configure, text="Error: Local path cannot be empty or is invalid!", text_color="red")
         return
 
+    # Get the selected update steps
+    enable_ini_data1 = local_update_ini_data1_var.get() == "on"
+    enable_arts = local_update_arts_var.get() == "on"
+    enable_lang = local_update_lang_var.get() == "on"
+
+    # Check that at least one step is selected
+    if not (enable_ini_data1 or enable_arts or enable_lang):
+        logger.error("No update steps selected. Please select at least one step.")
+        schedule_gui_update(flag_label.configure, text="Error: Select at least one update step!", text_color="red")
+        return
+
     logger.info(f"Using local content path: {source_content_path}")
     # Save the confirmed/entered path
     save_config(
@@ -426,7 +446,7 @@ def on_local_update_click():
 
     thread = threading.Thread(
         target=_run_local_update_thread,
-        args=(source_content_path, rotwk_path),
+        args=(source_content_path, rotwk_path, enable_ini_data1, enable_arts, enable_lang),
         daemon=True,
     )
     thread.start()
@@ -811,6 +831,7 @@ def run_gui():
     global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
     global latest_mod_available_label, mod_version_label, remove_mod_button
+    global local_update_ini_data1_var, local_update_arts_var, local_update_lang_var
 
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("dark-blue")
@@ -848,7 +869,7 @@ def run_gui():
     main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
     main_frame.grid_columnconfigure(0, weight=1)
     # Configure rows as before...
-    main_frame.grid_rowconfigure(6, weight=1)  # Log Frame row needs weight to expand
+    main_frame.grid_rowconfigure(7, weight=1)  # Log Frame row needs weight to expand
 
     # --- REMOTE UPDATE HEADING AND VERSION (Row 0) ---
     remote_heading_label = ctk.CTkLabel(main_frame, text="Remote Update (Latest Official Mod)", font=("Arial", 16, "bold"))
@@ -953,10 +974,56 @@ def run_gui():
     )
     local_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
 
-    # --- STATUS FLAG & LAUNCH (Row 5) ---
+    # --- LOCAL UPDATE STEPS SELECTION (Row 4.5) ---
+    steps_frame = ctk.CTkFrame(main_frame)
+    steps_frame.grid(row=5, column=0, padx=20, pady=(5, 10), sticky="ew")
+    steps_frame.grid_columnconfigure(0, weight=0)
+    steps_frame.grid_columnconfigure(1, weight=0)
+    steps_frame.grid_columnconfigure(2, weight=0)
+
+    steps_label = ctk.CTkLabel(steps_frame, text="Select Update Steps:", font=TEXT_FONT)
+    steps_label.grid(row=0, column=0, padx=(10, 20), pady=5, sticky="w")
+
+    # Initialize StringVar for checkboxes (on/off)
+    local_update_ini_data1_var = ctk.StringVar(value="on")
+    local_update_arts_var = ctk.StringVar(value="on")
+    local_update_lang_var = ctk.StringVar(value="on")
+
+    # Create checkboxes
+    ini_data1_checkbox = ctk.CTkCheckBox(
+        steps_frame,
+        text="INI + DATA1",
+        variable=local_update_ini_data1_var,
+        onvalue="on",
+        offvalue="off",
+        font=TEXT_FONT,
+    )
+    ini_data1_checkbox.grid(row=0, column=1, padx=10, pady=5)
+
+    arts_checkbox = ctk.CTkCheckBox(
+        steps_frame,
+        text="ARTS",
+        variable=local_update_arts_var,
+        onvalue="on",
+        offvalue="off",
+        font=TEXT_FONT,
+    )
+    arts_checkbox.grid(row=0, column=2, padx=10, pady=5)
+
+    lang_checkbox = ctk.CTkCheckBox(
+        steps_frame,
+        text="LANG (IT)",
+        variable=local_update_lang_var,
+        onvalue="on",
+        offvalue="off",
+        font=TEXT_FONT,
+    )
+    lang_checkbox.grid(row=0, column=3, padx=10, pady=5)
+
+    # --- STATUS FLAG & LAUNCH (Row 6) ---
     # REVERT this section to its original state (before adding disable_mod_button here)
     flag_frame = ctk.CTkFrame(main_frame)
-    flag_frame.grid(row=5, column=0, padx=20, pady=(10, 10), sticky="ew")
+    flag_frame.grid(row=6, column=0, padx=20, pady=(10, 10), sticky="ew")
     # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Launch
     flag_frame.grid_columnconfigure(0, weight=1)  # Label takes available space
     flag_frame.grid_columnconfigure(1, weight=0)  # Kill button fixed width
@@ -1000,7 +1067,7 @@ def run_gui():
 
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame)
-    log_frame.grid(row=6, column=0, padx=10, pady=(10, 10), sticky="nsew")
+    log_frame.grid(row=7, column=0, padx=10, pady=(10, 10), sticky="nsew")
     log_frame.grid_rowconfigure(2, weight=1)  # riga 2 ora (console spostata giù)
     log_frame.grid_columnconfigure(0, weight=1)
 

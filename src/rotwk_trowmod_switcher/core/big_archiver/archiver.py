@@ -297,24 +297,44 @@ def execute_and_log_operations(
     return all_successful
 
 
-def create_big_archives(source_content_path: str, game_path: str, logger: logging.Logger, mod_version: str) -> bool:
+def create_big_archives(
+    source_content_path: str,
+    game_path: str,
+    logger: logging.Logger,
+    mod_version: str,
+    create_ini_data1: bool = True,
+    create_arts: bool = True,
+    create_lang: bool = True,
+) -> bool:
     """
-    Creates the necessary .big archives using the generic function, parallelizing the operations while keeping logs ordered.
+    Creates the necessary .big archives, parallelizing the operations while keeping logs ordered.
+
+    Args:
+        source_content_path: Path to the source mod content
+        game_path: Path to the game installation directory
+        logger: Logger instance
+        mod_version: Version string for the mod
+        create_ini_data1: Whether to create INI and DATA1 archives (default True)
+        create_arts: Whether to create ARTS archive (default True)
+        create_lang: Whether to create LANG archive (default True)
+
+    Returns:
+        True if all enabled operations were successful, False otherwise.
     """
     start_time = time.time()  # Start the timer
+
     # Define the operations to execute
-    archive_operations = [
-        (create_trowmod_ini_big_archive, {"archive_name": DEFAULT_INI_ARCHIVE_NAME}),
-        (create_trowmod_arts_big_archive, {"archive_name": DEFAULT_ARTS_ARCHIVE_NAME}),
-        (
-            create_trowmod_itlang_big_archive,
-            {"archive_name": DEFAULT_ITLANG_ARCHIVE_NAME},
-        ),
-        (
-            create_trowmod_data1_big_archive,
-            {"archive_name": DEFAULT_DATA1_ARCHIVE_NAME},
-        ),
-    ]
+    archive_operations = []
+
+    if create_ini_data1:
+        archive_operations.append((create_trowmod_ini_big_archive, {"archive_name": DEFAULT_INI_ARCHIVE_NAME}))
+        archive_operations.append((create_trowmod_data1_big_archive, {"archive_name": DEFAULT_DATA1_ARCHIVE_NAME}))
+
+    if create_arts:
+        archive_operations.append((create_trowmod_arts_big_archive, {"archive_name": DEFAULT_ARTS_ARCHIVE_NAME}))
+
+    if create_lang:
+        archive_operations.append((create_trowmod_itlang_big_archive, {"archive_name": DEFAULT_ITLANG_ARCHIVE_NAME}))
 
     # Define the common arguments
     common_arguments = {
@@ -323,6 +343,7 @@ def create_big_archives(source_content_path: str, game_path: str, logger: loggin
     }
 
     logger.info("Proceeding to create the big archives...")
+    logger.debug(f"Archive creation settings - INI+DATA1: {create_ini_data1}, ARTS: {create_arts}, LANG: {create_lang}")
 
     results = []
     all_successful = True
