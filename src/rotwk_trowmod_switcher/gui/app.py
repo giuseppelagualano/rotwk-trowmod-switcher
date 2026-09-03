@@ -491,6 +491,28 @@ def browse_local_dev_path():
         )
 
 
+def clear_game_map_cache():
+    """Removes the current user's RotWK map cache before launching the game."""
+    appdata_path = os.environ.get("APPDATA")
+    if not appdata_path:
+        appdata_path = os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+
+    map_cache_path = os.path.join(
+        appdata_path,
+        "File de Il Signore degli Anelli™ - L'Ascesa del Re Stregone™",
+        "Maps",
+        "MapCache.ini",
+    )
+
+    try:
+        os.remove(map_cache_path)
+        logger.info(f"Removed game map cache: {map_cache_path}")
+    except FileNotFoundError:
+        logger.info(f"Game map cache not found: {map_cache_path}")
+    except OSError as e:
+        logger.warning(f"Could not remove game map cache {map_cache_path}: {e}")
+
+
 def on_launch_game_click():
     """Attempts to launch the RotWK game executable."""
     if not rotwk_path_entry:
@@ -517,6 +539,7 @@ def on_launch_game_click():
         return
 
     try:
+        clear_game_map_cache()
         logger.info(f"Launching: {full_game_exe_path} in directory {rotwk_path}")
         subprocess.Popen([full_game_exe_path], cwd=rotwk_path)
         logger.info("Game launch command issued.")
