@@ -72,6 +72,7 @@ from .theme import (
     TERTIARY_BUTTON_FONT,
     TEXT_FONT,
     TEXT_PRIMARY,
+    TEXT_SECONDARY,
 )
 
 # --- Logger Setup ---
@@ -90,6 +91,7 @@ remote_update_button = None
 local_update_button = None
 launch_game_button = None
 kill_game_button = None
+launch_dev_mode_var = None
 browse_button_remote = None
 browse_button_local = None
 rotwk_path_entry = None
@@ -184,6 +186,46 @@ def schedule_gui_update(callback, *args, **kwargs):
     else:
         # Use f-string for logging
         logger.debug(f"Debug: GUI update ignored as root window no longer exists. Callback: {callback.__name__}")
+
+
+def add_tooltip(widget, text):
+    """Displays a small tooltip while the pointer is over a widget."""
+    tooltip_window = None
+
+    def show_tooltip(_event):
+        nonlocal tooltip_window
+        if tooltip_window or not widget.winfo_exists():
+            return
+
+        tooltip_window = tkinter.Toplevel(widget)
+        tooltip_window.wm_overrideredirect(True)
+        tooltip_window.attributes("-topmost", True)
+        tooltip_window.configure(bg="#172528")
+
+        tooltip_label = tkinter.Label(
+            tooltip_window,
+            text=text,
+            justify="left",
+            padx=8,
+            pady=6,
+            bg="#172528",
+            fg="#D3D3D3",
+            relief="solid",
+            borderwidth=1,
+            font=("Arial", 10),
+        )
+        tooltip_label.pack()
+        tooltip_window.update_idletasks()
+        tooltip_window.geometry(f"+{widget.winfo_rootx() + 24}+{widget.winfo_rooty() + widget.winfo_height() + 4}")
+
+    def hide_tooltip(_event):
+        nonlocal tooltip_window
+        if tooltip_window:
+            tooltip_window.destroy()
+            tooltip_window = None
+
+    widget.bind("<Enter>", show_tooltip)
+    widget.bind("<Leave>", hide_tooltip)
 
 
 # --- GUI Update Functions ---
@@ -540,8 +582,13 @@ def on_launch_game_click():
 
     try:
         clear_game_map_cache()
-        logger.info(f"Launching: {full_game_exe_path} in directory {rotwk_path}")
-        subprocess.Popen([full_game_exe_path], cwd=rotwk_path)
+        launch_args = [full_game_exe_path]
+        if launch_dev_mode_var and launch_dev_mode_var.get():
+            launch_args.extend(["-noshellmap", "-win", "-xres", "1280", "-yres", "720"])
+            logger.info(f"Launching in dev mode: {' '.join(launch_args)} in directory {rotwk_path}")
+        else:
+            logger.info(f"Launching: {full_game_exe_path} in directory {rotwk_path}")
+        subprocess.Popen(launch_args, cwd=rotwk_path)
         logger.info("Game launch command issued.")
     except OSError as e:
         logger.error(f"OS Error launching game: {e}", exc_info=True)
@@ -851,7 +898,7 @@ def setup_logging_to_text_widget():
 def run_gui():
     """Creates and runs the main application window."""
     global root, log_console, log_filter_var, flag_label, remote_update_button, local_update_button
-    global launch_game_button, kill_game_button, browse_button_remote, browse_button_local
+    global launch_game_button, kill_game_button, launch_dev_mode_var, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
     global latest_mod_available_label, mod_version_label, remove_mod_button
     global local_update_ini_data1_var, local_update_arts_var, local_update_lang_var
@@ -1047,10 +1094,11 @@ def run_gui():
     # REVERT this section to its original state (before adding disable_mod_button here)
     flag_frame = ctk.CTkFrame(main_frame)
     flag_frame.grid(row=6, column=0, padx=20, pady=(10, 10), sticky="ew")
-    # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Launch
+    # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Diagnostic run, 3 for Launch
     flag_frame.grid_columnconfigure(0, weight=1)  # Label takes available space
     flag_frame.grid_columnconfigure(1, weight=0)  # Kill button fixed width
-    flag_frame.grid_columnconfigure(2, weight=0)  # Launch button fixed width
+    flag_frame.grid_columnconfigure(2, weight=0)  # Diagnostic run checkbox fixed width
+    flag_frame.grid_columnconfigure(3, weight=0)  # Launch button fixed width
 
     is_admin_flag = is_admin()
     flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
@@ -1073,7 +1121,55 @@ def run_gui():
     )
     kill_game_button.grid(row=0, column=1, padx=(5, 5), pady=5, sticky="e")  # Column 1
 
-    # --- Launch Game button --- # (Back to Column 2)
+    launch_dev_mode_var = ctk.BooleanVar(value=False)
+    diagnostic_frame = ctk.CTkFrame(flag_frame, fg_color="transparent")
+    diagnostic_frame.grid(row=0, column=2, padx=(5, 10), pady=5, sticky="e")
+
+    launch_dev_mode_checkbox = ctk.CTkCheckBox(
+        diagnostic_frame,
+        text="Diagnostic run",
+        variable=launch_dev_mode_var,
+        font=TERTIARY_BUTTON_FONT,
+        width=100,
+        height=32,
+        corner_radius=6,
+        fg_color=BUTTON_TERTIARY_BG,
+        hover_color=BUTTON_PRIMARY_HOVER,
+        border_color=BUTTON_PRIMARY_BORDER,
+        border_width=1,
+        text_color=TEXT_SECONDARY,
+        checkmark_color=TEXT_PRIMARY,
+    )
+    launch_dev_mode_checkbox.grid(row=0, column=0, padx=(0, 5), pady=0, sticky="e")
+
+    diagnostic_hint_frame = ctk.CTkFrame(
+        diagnostic_frame,
+        width=19,
+        height=19,
+        corner_radius=10,
+        fg_color="transparent",
+        border_width=1,
+        border_color=TEXT_PRIMARY,
+    )
+    diagnostic_hint_frame.grid(row=0, column=1, padx=0, pady=0)
+
+    diagnostic_hint_label = ctk.CTkLabel(
+        diagnostic_hint_frame,
+        text="?",
+        font=("Arial", 11, "bold"),
+        width=17,
+        height=17,
+        corner_radius=8,
+        fg_color="transparent",
+        text_color=TEXT_PRIMARY,
+    )
+    diagnostic_hint_label.pack(padx=0, pady=0)
+    add_tooltip(
+        diagnostic_hint_label,
+        "Launches the game in windowed low-resolution mode (1280x720).\nUseful for quickly checking mod changes during development.",
+    )
+
+    # --- Launch Game button --- # (Back to Column 3)
     launch_game_button = ctk.CTkButton(
         flag_frame,
         text="Launch Game",
@@ -1086,7 +1182,7 @@ def run_gui():
         border_width=1,
         width=120,
     )
-    launch_game_button.grid(row=0, column=2, padx=(0, 10), pady=5, sticky="e")  # Column 2
+    launch_game_button.grid(row=0, column=3, padx=(0, 10), pady=5, sticky="e")  # Column 3
 
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame)
