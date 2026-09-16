@@ -1,8 +1,10 @@
 # core/registry.py
 import logging
+import re
 import winreg
 from pathlib import Path
 
+import pefile
 from windows_toasts import (
     Toast,
     ToastDisplayImage,
@@ -77,3 +79,40 @@ def find_rotwk_install_path(registry_paths: list[str]) -> Path | None:
 
     logger.warning("RoTWK installation path not found in any specified registry locations.")
     return None
+
+
+def find_rotwk_patch_version(game_path: str | Path) -> str:
+    """Return the 2.02 patch version reported by AllInOneLauncher markers."""
+    path = Path(game_path)
+    if not path.is_dir():
+        return "Path does not exist or is not a directory"
+
+    marker_pattern = re.compile(r"202_v(?P<version>\d+(?:\.\d+){1,2})\.big$", re.IGNORECASE)
+    for marker_path in path.glob("*202_v*.big"):
+        match = marker_pattern.search(marker_path.name)
+        if match:
+            return f"2.02 v{match.group('version')}"
+
+    if (path / "__patch202.big").is_file() or (path / "################202.big").is_file():
+        return "2.02 (< 9.0.0 - no version marker)"
+    return "No marker found"
+
+
+def check_rotwk_4gb_patch(game_path: str | Path) -> dict[str, bool | str]:
+    """Check the Large Address Aware flag on both RotWK executables."""
+    path = Path(game_path)
+    results: dict[str, bool | str] = {}
+    for filename in ("lotrbfme2ep1.exe", "game.dat"):
+        file_path = path / filename
+        if not file_path.is_file():
+            results[filename] = "File not found"
+            continue
+
+        try:
+            with pefile.PE(str(file_path), fast_load=True) as pe:
+                results[filename] = bool(pe.FILE_HEADER.Characteristics & pefile.IMAGE_CHARACTERISTICS["IMAGE_FILE_LARGE_ADDRESS_AWARE"])
+        except (OSError, pefile.PEFormatError) as error:
+            results[filename] = f"Check failed: {error}"
+
+    results["all_patched"] = all(results.get(filename) is True for filename in ("lotrbfme2ep1.exe", "game.dat"))
+    return results

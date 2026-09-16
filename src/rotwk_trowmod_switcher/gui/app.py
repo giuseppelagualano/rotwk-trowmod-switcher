@@ -48,12 +48,16 @@ from rotwk_trowmod_switcher.core.utils import (
     save_config,
 )
 from rotwk_trowmod_switcher.core.windows_utils import (
+    check_rotwk_4gb_patch,
     find_rotwk_install_path,
+    find_rotwk_patch_version,
     windows_notify,
 )
 
 # --- GUI Theme/Constants Import ---
 from .theme import (
+    ACCENT_GREEN,
+    APP_SURFACE,
     APP_TITLE,
     BG_IMG_FILE_PATH,
     BUTTON_PRIMARY_BG,
@@ -63,14 +67,21 @@ from .theme import (
     BUTTON_SECONDARY_HOVER,
     BUTTON_TERTIARY_BG,
     BUTTON_TEXT_SECONDARY,
+    DIVIDER_COLOR,
     FLAG_FONT,
     GAME_IMG_FILE_PATH,
     ICON_FILE_PATH,
     INITIAL_WINDOW_SIZE,
+    INPUT_SURFACE,
+    LABEL_FONT,
+    PANEL_RAISED,
+    PANEL_SURFACE,
     PRIMARY_BUTTON_FONT,
     SECONDARY_BUTTON_FONT,
+    STATUS_FONT,
     TERTIARY_BUTTON_FONT,
     TEXT_FONT,
+    TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
 )
@@ -96,6 +107,7 @@ browse_button_remote = None
 browse_button_local = None
 rotwk_path_entry = None
 local_path_entry = None
+patch_version_label = None
 
 # Global vars for local update step selection
 local_update_ini_data1_var = None
@@ -513,6 +525,8 @@ def browse_rotwk_path():
             normalized_path,
         )
         update_mod_version_display(normalized_path)
+        update_patch_version_display(normalized_path)
+        update_4gb_patch_display(normalized_path)
 
 
 def browse_local_dev_path():
@@ -708,7 +722,45 @@ def update_mod_version_display(game_dir_path):
             color = "red"
 
     # Schedule GUI update for the label
-    schedule_gui_update(mod_version_label.configure, text=f"Installed Mod Version: {version}", text_color=color)
+    schedule_gui_update(mod_version_label.configure, text=f"INSTALLED MOD\n{version}", text_color=color)
+
+
+def update_patch_version_display(game_dir_path):
+    """Reads the installed 2.02 marker and updates the GUI label."""
+    if not patch_version_label:
+        logger.debug("patch_version_label widget not ready yet.")
+        return
+
+    patch_version = find_rotwk_patch_version(game_dir_path)
+    color = TEXT_PRIMARY if patch_version.startswith("2.02") else "orange"
+    schedule_gui_update(patch_version_label.configure, text=f"GAME PATCH\n{patch_version}", text_color=color)
+
+
+def update_4gb_patch_display(game_dir_path):
+    """Check both game binaries and update the game-control warning state."""
+    if not flag_label:
+        logger.debug("flag_label not ready for 4GB patch check.")
+        return
+
+    results = check_rotwk_4gb_patch(game_dir_path)
+    launcher_status = results.get("lotrbfme2ep1.exe", "Unknown")
+    engine_status = results.get("game.dat", "Unknown")
+    is_complete = results.get("all_patched") is True
+
+    for filename, status in (("lotrbfme2ep1.exe", launcher_status), ("game.dat", engine_status)):
+        if status is True:
+            logger.info("4GB patch active: %s", filename)
+        else:
+            logger.error("4GB patch check failed for %s: %s", filename, status)
+
+    if is_complete:
+        message = "Administrator privileges verified. | 4GB patch active."
+        color = ACCENT_GREEN if is_admin() else "red"
+    else:
+        message = f"WARNING: 4GB patch incomplete | .exe: {launcher_status} | game.dat: {engine_status}"
+        color = "orange"
+
+    schedule_gui_update(flag_label.configure, text=message, text_color=color)
 
 
 def fetch_and_display_latest_mod_version():
@@ -718,7 +770,7 @@ def fetch_and_display_latest_mod_version():
         return  # Label not ready
 
     logger.info("Checking for latest available mod version...")
-    schedule_gui_update(latest_mod_available_label.configure, text="Latest Available: Checking...")
+    schedule_gui_update(latest_mod_available_label.configure, text="LATEST RELEASE\nChecking...")
 
     mod_repo_full_name = f"{config.REPO_OWNER}/{config.REPO_NAME}"  # Get mod repo from config
     latest_tag = None
@@ -735,10 +787,10 @@ def fetch_and_display_latest_mod_version():
     # Update GUI based on result
     if latest_tag:
         logger.info(f"Latest available mod version found: {latest_tag}")
-        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {latest_tag}", text_color=TEXT_PRIMARY)
+        schedule_gui_update(latest_mod_available_label.configure, text=f"LATEST TROWMOD RELEASE\n{latest_tag}", text_color=TEXT_PRIMARY)
     else:
         logger.warning("Could not determine latest available mod version due to error. Check your internet connection or repository status.")
-        schedule_gui_update(latest_mod_available_label.configure, text=f"Latest Available: {error_msg}", text_color="orange")
+        schedule_gui_update(latest_mod_available_label.configure, text=f"LATEST TROWMOD RELEASE\n{error_msg}", text_color="orange")
 
 
 def start_fetch_latest_mod_version_thread():
@@ -900,7 +952,7 @@ def run_gui():
     global root, log_console, log_filter_var, flag_label, remote_update_button, local_update_button
     global launch_game_button, kill_game_button, launch_dev_mode_var, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
-    global latest_mod_available_label, mod_version_label, remove_mod_button
+    global latest_mod_available_label, mod_version_label, remove_mod_button, patch_version_label
     global local_update_ini_data1_var, local_update_arts_var, local_update_lang_var
 
     ctk.set_appearance_mode("dark")
@@ -909,6 +961,7 @@ def run_gui():
     root = ctk.CTk()
     root.resizable(False, False)
     root.geometry(INITIAL_WINDOW_SIZE)
+    root.configure(fg_color=APP_SURFACE)
 
     try:
         root.iconbitmap(resource_path(ICON_FILE_PATH))
@@ -938,32 +991,71 @@ def run_gui():
     main_frame = ctk.CTkFrame(root, corner_radius=20, fg_color="transparent")
     main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
     main_frame.grid_columnconfigure(0, weight=1)
-    # Configure rows as before...
-    main_frame.grid_rowconfigure(7, weight=1)  # Log Frame row needs weight to expand
+    main_frame.grid_rowconfigure(7, weight=1)
 
-    # --- REMOTE UPDATE HEADING AND VERSION (Row 0) ---
-    remote_heading_label = ctk.CTkLabel(main_frame, text="Remote Update (Latest Official Mod)", font=("Arial", 16, "bold"))
-    remote_heading_label.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
+    # --- STATUS STRIP ---
+    status_frame = ctk.CTkFrame(
+        main_frame,
+        fg_color=PANEL_SURFACE,
+        border_width=1,
+        border_color=DIVIDER_COLOR,
+        corner_radius=10,
+    )
+    status_frame.grid(row=0, column=0, padx=20, pady=(15, 12), sticky="ew")
+    for status_column in range(3):
+        status_frame.grid_columnconfigure(status_column, weight=1)
 
-    # Place mod version label in column 2, aligned right within its cell
+    status_cards = []
+    for status_column in range(3):
+        status_frame.grid_columnconfigure(status_column, weight=1, uniform="status")
+        status_card = ctk.CTkFrame(
+            status_frame,
+            fg_color=PANEL_RAISED,
+            border_width=1,
+            border_color=DIVIDER_COLOR,
+            corner_radius=8,
+        )
+        status_card.grid(row=0, column=status_column, padx=6, pady=6, sticky="nsew")
+        status_card.grid_columnconfigure(0, weight=1)
+        status_cards.append(status_card)
+
     global mod_version_label
-    mod_version_label = ctk.CTkLabel(main_frame, text="Installed Mod Version: Checking...")
-    # Note: Initial text might be updated shortly after by update_mod_version_display
-    mod_version_label.grid(row=0, column=0, padx=(0, 20), pady=(15, 5), sticky="e")
+    mod_version_label = ctk.CTkLabel(
+        status_cards[0],
+        text="INSTALLED MOD\nChecking...",
+        font=STATUS_FONT,
+        justify="center",
+        height=54,
+    )
+    mod_version_label.grid(row=0, column=0, padx=12, pady=8, sticky="ew")
 
-    # --- LATEST AVAILABLE VERSION LABEL (Row 1) ---
     global latest_mod_available_label
-    latest_mod_available_label = ctk.CTkLabel(main_frame, text="Latest Available: Checking...")
-    latest_mod_available_label.grid(row=0, column=0, padx=(0, 20), pady=(45, 0), sticky="e")
+    latest_mod_available_label = ctk.CTkLabel(
+        status_cards[1],
+        text="LATEST RELEASE\nChecking...",
+        font=STATUS_FONT,
+        justify="center",
+        height=54,
+    )
+    latest_mod_available_label.grid(row=0, column=0, padx=12, pady=8, sticky="ew")
 
-    rotwk_path_label = ctk.CTkLabel(main_frame, text="RoTWK Installation Path:", font=TEXT_FONT)
-    rotwk_path_label.grid(row=1, column=0, padx=20, pady=(5, 0), sticky="w")
+    patch_version_label = ctk.CTkLabel(
+        status_cards[2],
+        text="GAME PATCH\nChecking...",
+        font=STATUS_FONT,
+        justify="center",
+        height=54,
+    )
+    patch_version_label.grid(row=0, column=0, padx=12, pady=8, sticky="ew")
 
-    remote_frame = ctk.CTkFrame(main_frame)
+    rotwk_path_label = ctk.CTkLabel(main_frame, text="GAME INSTALLATION", font=LABEL_FONT, text_color=TEXT_MUTED)
+    rotwk_path_label.grid(row=1, column=0, padx=20, pady=(0, 0), sticky="w")
+
+    remote_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
     remote_frame.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="ew")
     remote_frame.grid_columnconfigure(0, weight=1)  # Entry expands
 
-    rotwk_path_entry = ctk.CTkEntry(remote_frame, font=TEXT_FONT)
+    rotwk_path_entry = ctk.CTkEntry(remote_frame, font=TEXT_FONT, fg_color=INPUT_SURFACE, border_color=DIVIDER_COLOR)
     rotwk_path_entry.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")
     rotwk_default_path = find_rotwk_install_path(REGISTRY_PATHS_ROTWK) or "NOT FOUND!"
     loaded_rotwk_path = load_config(
@@ -973,6 +1065,8 @@ def run_gui():
         rotwk_default_path,
     )
     rotwk_path_entry.insert(0, loaded_rotwk_path)
+    rotwk_path_entry.bind("<FocusOut>", lambda _event: (update_patch_version_display(rotwk_path_entry.get()), update_4gb_patch_display(rotwk_path_entry.get())))
+    rotwk_path_entry.bind("<Return>", lambda _event: (update_patch_version_display(rotwk_path_entry.get()), update_4gb_patch_display(rotwk_path_entry.get())))
 
     browse_button_remote = ctk.CTkButton(
         remote_frame,
@@ -1001,14 +1095,14 @@ def run_gui():
     remote_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
 
     # --- LOCAL UPDATE SECTION ---
-    local_heading_label = ctk.CTkLabel(main_frame, text="Local Update (Test Local Changes)", font=("Arial", 16, "bold"))
+    local_heading_label = ctk.CTkLabel(main_frame, text="LOCAL BUILD", font=LABEL_FONT, text_color=TEXT_MUTED)
     local_heading_label.grid(row=3, column=0, padx=20, pady=(15, 5), sticky="w")
 
-    local_frame = ctk.CTkFrame(main_frame)
+    local_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
     local_frame.grid(row=4, column=0, padx=20, pady=(5, 10), sticky="ew")
     local_frame.grid_columnconfigure(0, weight=1)  # Entry expands
 
-    local_path_entry = ctk.CTkEntry(local_frame, font=TEXT_FONT)
+    local_path_entry = ctk.CTkEntry(local_frame, font=TEXT_FONT, fg_color=INPUT_SURFACE, border_color=DIVIDER_COLOR)
     local_path_entry.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")
     loaded_local_path = load_config(
         APPDATA_FOLDER + CONFIG_FILE_NAME,
@@ -1045,7 +1139,7 @@ def run_gui():
     local_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
 
     # --- LOCAL UPDATE STEPS SELECTION (Row 4.5) ---
-    steps_frame = ctk.CTkFrame(main_frame)
+    steps_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
     steps_frame.grid(row=5, column=0, padx=20, pady=(5, 10), sticky="ew")
     steps_frame.grid_columnconfigure(0, weight=0)
     steps_frame.grid_columnconfigure(1, weight=0)
@@ -1090,48 +1184,82 @@ def run_gui():
     )
     lang_checkbox.grid(row=0, column=3, padx=10, pady=5)
 
-    # --- STATUS FLAG & LAUNCH (Row 6) ---
-    # REVERT this section to its original state (before adding disable_mod_button here)
-    flag_frame = ctk.CTkFrame(main_frame)
+    # --- GAME CONTROL DOCK ---
+    flag_frame = ctk.CTkFrame(
+        main_frame,
+        fg_color=PANEL_SURFACE,
+        border_width=1,
+        border_color=DIVIDER_COLOR,
+        corner_radius=10,
+    )
     flag_frame.grid(row=6, column=0, padx=20, pady=(10, 10), sticky="ew")
-    # Configure columns: 0 for label (stretches), 1 for Kill, 2 for Diagnostic run, 3 for Launch
-    flag_frame.grid_columnconfigure(0, weight=1)  # Label takes available space
-    flag_frame.grid_columnconfigure(1, weight=0)  # Kill button fixed width
-    flag_frame.grid_columnconfigure(2, weight=0)  # Diagnostic run checkbox fixed width
-    flag_frame.grid_columnconfigure(3, weight=0)  # Launch button fixed width
+    flag_frame.grid_columnconfigure(0, weight=1)
 
     is_admin_flag = is_admin()
     flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
-    flag_color = "green" if is_admin_flag else "red"
-    flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
-    flag_label.grid(row=0, column=0, padx=10, pady=5, sticky="ew")  # Column 0
+    flag_color = ACCENT_GREEN if is_admin_flag else "red"
+    control_title = ctk.CTkLabel(flag_frame, text="GAME CONTROL", font=LABEL_FONT, text_color=TEXT_MUTED)
+    control_title.grid(row=0, column=0, padx=16, pady=(10, 0), sticky="w")
 
-    # --- Kill Game button --- # (Back to Column 1)
-    kill_game_button = ctk.CTkButton(
+    flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
+    flag_label.grid(row=1, column=0, padx=16, pady=(2, 8), sticky="w")
+
+    action_frame = ctk.CTkFrame(
         flag_frame,
+        fg_color=PANEL_RAISED,
+        border_width=1,
+        border_color=DIVIDER_COLOR,
+        corner_radius=8,
+    )
+    action_frame.grid(row=2, column=0, padx=10, pady=(0, 8), sticky="ew")
+    action_frame.grid_columnconfigure(0, weight=1)
+    action_frame.grid_columnconfigure(1, weight=1)
+
+    # --- Launch Game button ---
+    launch_game_button = ctk.CTkButton(
+        action_frame,
+        text="Launch Game",
+        image=game_ico,
+        font=PRIMARY_BUTTON_FONT,
+        command=on_launch_game_click,
+        fg_color=BUTTON_PRIMARY_BG,
+        hover_color=BUTTON_PRIMARY_HOVER,
+        border_color=BUTTON_PRIMARY_BORDER,
+        border_width=1,
+        width=190,
+        height=46,
+    )
+    launch_game_button.grid(row=0, column=0, padx=(8, 4), pady=8, sticky="ew")
+
+    # --- Kill Game button ---
+    kill_game_button = ctk.CTkButton(
+        action_frame,
         text="Kill Game",
-        font=TERTIARY_BUTTON_FONT,
+        font=SECONDARY_BUTTON_FONT,
         command=on_kill_game_click,
         fg_color="#6c1f0e",
         hover_color="#B22222",
         text_color="white",
         border_color="#FF6347",
         border_width=1,
-        width=120,
+        width=150,
+        height=46,
     )
-    kill_game_button.grid(row=0, column=1, padx=(5, 5), pady=5, sticky="e")  # Column 1
+    kill_game_button.grid(row=0, column=1, padx=(4, 8), pady=8, sticky="ew")
 
     launch_dev_mode_var = ctk.BooleanVar(value=False)
     diagnostic_frame = ctk.CTkFrame(flag_frame, fg_color="transparent")
-    diagnostic_frame.grid(row=0, column=2, padx=(5, 10), pady=5, sticky="e")
+    diagnostic_frame.grid(row=3, column=0, padx=16, pady=(0, 10), sticky="w")
+    diagnostic_frame.grid_columnconfigure(0, weight=0)
+    diagnostic_frame.grid_columnconfigure(1, weight=0)
 
     launch_dev_mode_checkbox = ctk.CTkCheckBox(
         diagnostic_frame,
-        text="Diagnostic run",
+        text="Run in diagnostic mode",
         variable=launch_dev_mode_var,
         font=TERTIARY_BUTTON_FONT,
-        width=100,
-        height=32,
+        width=24,
+        height=28,
         corner_radius=6,
         fg_color=BUTTON_TERTIARY_BG,
         hover_color=BUTTON_PRIMARY_HOVER,
@@ -1140,25 +1268,25 @@ def run_gui():
         text_color=TEXT_SECONDARY,
         checkmark_color=TEXT_PRIMARY,
     )
-    launch_dev_mode_checkbox.grid(row=0, column=0, padx=(0, 5), pady=0, sticky="e")
+    launch_dev_mode_checkbox.grid(row=0, column=0, padx=(0, 8), pady=0, sticky="w")
 
     diagnostic_hint_frame = ctk.CTkFrame(
         diagnostic_frame,
-        width=19,
-        height=19,
+        width=20,
+        height=20,
         corner_radius=10,
         fg_color="transparent",
         border_width=1,
         border_color=TEXT_PRIMARY,
     )
-    diagnostic_hint_frame.grid(row=0, column=1, padx=0, pady=0)
+    diagnostic_hint_frame.grid(row=0, column=1, padx=0, pady=0, sticky="w")
 
     diagnostic_hint_label = ctk.CTkLabel(
         diagnostic_hint_frame,
         text="?",
-        font=("Arial", 11, "bold"),
-        width=17,
-        height=17,
+        font=("Arial", 12, "bold"),
+        width=18,
+        height=18,
         corner_radius=8,
         fg_color="transparent",
         text_color=TEXT_PRIMARY,
@@ -1169,23 +1297,8 @@ def run_gui():
         "Launches the game in windowed low-resolution mode (1280x720).\nUseful for quickly checking mod changes during development.",
     )
 
-    # --- Launch Game button --- # (Back to Column 3)
-    launch_game_button = ctk.CTkButton(
-        flag_frame,
-        text="Launch Game",
-        image=game_ico,  # Make sure game_ico is loaded earlier
-        font=SECONDARY_BUTTON_FONT,
-        command=on_launch_game_click,
-        fg_color="#1c2c2c",
-        hover_color=BUTTON_PRIMARY_HOVER,
-        border_color=BUTTON_SECONDARY_HOVER,
-        border_width=1,
-        width=120,
-    )
-    launch_game_button.grid(row=0, column=3, padx=(0, 10), pady=5, sticky="e")  # Column 3
-
     # --- LOG CONSOLE ---
-    log_frame = ctk.CTkFrame(main_frame)
+    log_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
     log_frame.grid(row=7, column=0, padx=10, pady=(10, 10), sticky="nsew")
     log_frame.grid_rowconfigure(2, weight=1)  # riga 2 ora (console spostata giù)
     log_frame.grid_columnconfigure(0, weight=1)
@@ -1217,7 +1330,7 @@ def run_gui():
         relief="flat",
         borderwidth=1,
     )
-    log_console.configure(bg="#2B2B2B", fg="#DCE4EE", insertbackground="#DCE4EE")
+    log_console.configure(bg=INPUT_SURFACE, fg=TEXT_SECONDARY, insertbackground=TEXT_PRIMARY)
     log_console.grid(row=1, column=0, padx=10, pady=(0, 5), sticky="nsew")
 
     # --- Buttons in the Log Frame (Row 2) ---
@@ -1265,6 +1378,8 @@ def run_gui():
     perform_update_check(show_no_update_message=False)
 
     update_mod_version_display(loaded_rotwk_path)
+    update_patch_version_display(loaded_rotwk_path)
+    update_4gb_patch_display(loaded_rotwk_path)
     start_fetch_latest_mod_version_thread()
 
     root.mainloop()
