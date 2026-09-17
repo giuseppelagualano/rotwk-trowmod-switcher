@@ -25,6 +25,37 @@ from rotwk_trowmod_switcher.core.utils import remove_trailing_slashes
 logger = logging.getLogger(__name__)
 
 
+def _build_archive_without_staging(source_dir_path: str, virtual_prefix: str = "") -> Archive:
+    """Build an archive directly from a selected directory using pyBIG internals."""
+    binary_files, total_size, file_count = Archive._create_file_list_from_directory(source_dir_path)
+    if virtual_prefix:
+        binary_files = [(f"{virtual_prefix}\\{name}", size, contents) for name, size, contents in binary_files]
+    archive_buffer, entries = Archive._pack_file_list(binary_files, total_size, file_count)
+    archive_buffer.seek(0)
+    return Archive(archive_buffer.read(), entries=entries)
+
+
+def _build_archive_with_fallback(source_dir_path: str, staging_prefix: str, virtual_prefix: str = "") -> Archive:
+    """Use direct packing when supported, otherwise preserve the staging path."""
+    if hasattr(Archive, "_create_file_list_from_directory") and hasattr(Archive, "_pack_file_list"):
+        return _build_archive_without_staging(source_dir_path, virtual_prefix)
+
+    logger.warning("Direct pyBIG packing is unavailable; falling back to temporary staging.")
+    with tempfile.TemporaryDirectory(prefix=staging_prefix) as temp_staging_dir_str:
+        staging_start = time.perf_counter()
+        staging_target = os.path.join(temp_staging_dir_str, virtual_prefix) if virtual_prefix else temp_staging_dir_str
+        shutil.copytree(source_dir_path, staging_target, dirs_exist_ok=True)
+        logger.info(f"Archive staging copy duration: {time.perf_counter() - staging_start:.2f}s")
+        return Archive.from_directory(temp_staging_dir_str)
+
+
+def _save_prepacked_archive(archive: Archive, archive_path: str) -> None:
+    """Write an unchanged pyBIG buffer without triggering a second repack."""
+    archive.archive.seek(0)
+    with open(archive_path, "wb") as output_file:
+        output_file.write(archive.archive.getbuffer())
+
+
 def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, archive_name: str) -> bool:
     output_dir_path = remove_trailing_slashes(output_dir_path)
     source_dir_path = remove_trailing_slashes(source_dir_path)
@@ -33,26 +64,12 @@ def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, a
     try:
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
-        with tempfile.TemporaryDirectory(prefix="pybig_ini_") as temp_staging_dir_str:
-            logger.debug(f"Using temporary directory for staging ini archive: {temp_staging_dir_str}")
-
-            logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
-            shutil.copytree(
-                source_dir_path + "/data",
-                temp_staging_dir_str + "/data",
-                dirs_exist_ok=True,
-            )
-            logger.debug("Copy complete.")
-
-            logger.info(f"Creating INI BIG archive from directory: {temp_staging_dir_str}")
-
-            archive = Archive.from_directory(temp_staging_dir_str)
-
-            logger.info(f"Saving archive to: {archive_path}")
-            archive.save(archive_path)
-
-            logger.info(f"Archive created successfully: {archive_path}")
-
+        data_source_path = source_dir_path + "/data"
+        logger.info(f"Creating INI BIG archive directly from directory: {data_source_path}")
+        archive = _build_archive_with_fallback(data_source_path, "pybig_ini_", virtual_prefix="data")
+        logger.info(f"Saving archive to: {archive_path}")
+        _save_prepacked_archive(archive, archive_path)
+        logger.info(f"Archive created successfully: {archive_path}")
         return True
 
     except OSError as e:
@@ -66,6 +83,7 @@ def create_trowmod_ini_big_archive(source_dir_path: str, output_dir_path: str, a
 def build_asset_dat(source_dir_path: str) -> bool:
     exe_path = source_dir_path + "/arts/AssetCacheBuilder.exe"
     error_log_path = source_dir_path + "/arts/asseterrors.log"
+    build_start = time.perf_counter()
 
     logger.info(f"Running AssetCacheBuilder.exe from: {exe_path}")
     try:
@@ -77,6 +95,7 @@ def build_asset_dat(source_dir_path: str) -> bool:
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         logger.info(f"AssetCacheBuilder.exe exited with return code: {result.returncode}")
+        logger.info(f"AssetCacheBuilder.exe duration: {time.perf_counter() - build_start:.2f}s")
         if result.stdout:
             logger.debug(f"AssetCacheBuilder stdout:\n{result.stdout.strip()}")
         if result.stderr:
@@ -120,27 +139,26 @@ def create_trowmod_arts_big_archive(source_dir_path: str, output_dir_path: str, 
         logger.warning("asset.dat not found, skipping renaming.")
 
     logger.info("Insert new asset.dat from mod...")
+    asset_copy_start = time.perf_counter()
     shutil.copyfile(source_dir_path + "/arts/asset.dat", output_dir_path + "/asset.dat")
+    logger.info(f"ARTS asset.dat copy duration: {time.perf_counter() - asset_copy_start:.2f}s")
 
     try:
         logger.info(f"Creating BIG archive from directory: {source_dir_path}")
 
-        with tempfile.TemporaryDirectory(prefix="pybig_arts_") as temp_staging_dir_str:
-            logger.debug(f"Using temporary directory for staging arts archive: {temp_staging_dir_str}")
+        arts_source_path = source_dir_path + "/arts"
+        logger.info(f"Creating Arts BIG archive directly from directory: {arts_source_path}")
 
-            logger.info(f"Copying '{source_dir_path}' to '{temp_staging_dir_str}'...")
-            shutil.copytree(source_dir_path + "/arts", temp_staging_dir_str, dirs_exist_ok=True)
-            logger.debug("Copy complete.")
+        archive_build_start = time.perf_counter()
+        archive = _build_archive_with_fallback(arts_source_path, "pybig_arts_")
+        logger.info(f"ARTS pyBIG build duration: {time.perf_counter() - archive_build_start:.2f}s")
 
-            logger.info(f"Creating Arts BIG archive from directory: {temp_staging_dir_str}")
+        logger.info(f"Saving archive to: {archive_path}")
+        archive_save_start = time.perf_counter()
+        _save_prepacked_archive(archive, archive_path)
+        logger.info(f"ARTS archive save duration: {time.perf_counter() - archive_save_start:.2f}s")
 
-            archive = Archive.from_directory(temp_staging_dir_str)
-
-            logger.info(f"Saving archive to: {archive_path}")
-            archive.save(archive_path)
-
-            logger.info(f"Archive created successfully: {archive_path}")
-
+        logger.info(f"Archive created successfully: {archive_path}")
         return True
 
     except OSError as e:
@@ -195,7 +213,7 @@ def create_trowmod_itlang_big_archive(source_dir_path: str, output_dir_path: str
             archive = Archive.from_directory(temp_staging_dir_str)
 
             logger.info(f"Saving archive to: {archive_path}")
-            archive.save(archive_path)
+            _save_prepacked_archive(archive, archive_path)
 
             logger.info(f"Archive created successfully: {archive_path}")
 
@@ -229,7 +247,7 @@ def create_trowmod_data1_big_archive(source_dir_path: str, output_dir_path: str,
             archive = Archive.from_directory(temp_staging_dir_str)
 
             logger.info(f"Saving archive to: {archive_path}")
-            archive.save(archive_path)
+            _save_prepacked_archive(archive, archive_path)
 
             logger.info(f"Archive created successfully: {archive_path}")
 
@@ -307,7 +325,7 @@ def create_big_archives(
     create_lang: bool = True,
 ) -> bool:
     """
-    Creates the necessary .big archives, parallelizing the operations while keeping logs ordered.
+    Creates the necessary .big archives sequentially to avoid competing disk I/O.
 
     Args:
         source_content_path: Path to the source mod content
@@ -345,26 +363,27 @@ def create_big_archives(
     logger.info("Proceeding to create the big archives...")
     logger.debug(f"Archive creation settings - INI+DATA1: {create_ini_data1}, ARTS: {create_arts}, LANG: {create_lang}")
 
-    results = []
     all_successful = True
 
-    # Use ThreadPoolExecutor for parallel execution
-    with ThreadPoolExecutor() as executor:
-        future_to_operation = {executor.submit(func, **{**common_arguments, **specific_args}): (func, specific_args) for func, specific_args in archive_operations}
+    with ThreadPoolExecutor(max_workers=len(archive_operations)) as executor:
+        future_to_operation = {}
+        for func, specific_args in archive_operations:
+            operation_start = time.perf_counter()
+            future = executor.submit(func, **{**common_arguments, **specific_args})
+            future_to_operation[future] = (func, operation_start)
 
         for future in as_completed(future_to_operation):
-            func, specific_args = future_to_operation[future]
+            func, operation_start = future_to_operation[future]
+            elapsed = time.perf_counter() - operation_start
             try:
                 success = future.result()
-                results.append(success)
                 if success:
-                    logger.info(f"Operation {func.__name__} completed successfully.")
+                    logger.info(f"Operation {func.__name__} completed successfully in {elapsed:.2f}s.")
                 else:
-                    logger.warning(f"Operation {func.__name__} failed.")
+                    logger.warning(f"Operation {func.__name__} failed after {elapsed:.2f}s.")
                     all_successful = False
             except Exception as e:
-                logger.error(f"Exception during operation {func.__name__}: {e}", exc_info=True)
-                results.append(False)
+                logger.error(f"Exception during operation {func.__name__} after {elapsed:.2f}s: {e}", exc_info=True)
                 all_successful = False
 
     if all_successful:
@@ -393,5 +412,5 @@ def create_big_archives(
             return False
 
     elapsed_time = time.time() - start_time  # Calculate elapsed time
-    logger.debug(f"Time elapsed for creating big archives: {elapsed_time:.2f} seconds")
+    logger.info(f"Total time for creating big archives: {elapsed_time:.2f} seconds")
     return all_successful

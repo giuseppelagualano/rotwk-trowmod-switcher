@@ -108,6 +108,8 @@ browse_button_local = None
 rotwk_path_entry = None
 local_path_entry = None
 patch_version_label = None
+four_gb_status_label = None
+operation_status_label = None
 
 # Global vars for local update step selection
 local_update_ini_data1_var = None
@@ -241,16 +243,21 @@ def add_tooltip(widget, text):
 
 
 # --- GUI Update Functions ---
-def update_flag(success):
-    """Updates the status flag label based on the success of an operation."""
-    if not flag_label:
-        return  # Guard against missing widget
+def update_operation_status(operation, message, color):
+    """Display the latest operation result without replacing security checks."""
+    if not operation_status_label:
+        return
+    schedule_gui_update(operation_status_label.configure, text=f"{operation}\n{message}", text_color=color)
+
+
+def update_flag(success, operation="UPDATE"):
+    """Updates the operation status card based on the result."""
     if success:
-        schedule_gui_update(flag_label.configure, text="Update completed!", text_color="green")
+        update_operation_status(operation, "Completed successfully", ACCENT_GREEN)
         # Run notification in a separate thread to avoid blocking
-        windows_notify("Update completed!", "You can now launch the game")
+        windows_notify(f"{operation.title()} completed", "You can now launch the game")
     else:
-        schedule_gui_update(flag_label.configure, text="ERROR!! Please, see the logs below!", text_color="red")
+        update_operation_status(operation, "Failed - see the log below", "red")
 
 
 def set_buttons_state(new_state):
@@ -281,7 +288,7 @@ def clear_log():
 def _perform_update_download_and_restart(url, latest_v, release_notes):
     """Handles the download and restart process."""
     logger.info("Starting update download...")
-    schedule_gui_update(flag_label.configure, text="Downloading update...", text_color="yellow")  # Optional status update
+    update_operation_status("APPLICATION UPDATE", "Downloading...", "orange")
 
     downloaded_path = download_update(url)
 
@@ -339,7 +346,12 @@ def ask_user_to_update(latest_v, url, release_notes):
     if confirm:
         logger.info("User confirmed update. Preparing download.")
         set_buttons_state("disabled")
-        _perform_update_download_and_restart(url, latest_v, release_notes)
+        download_thread = threading.Thread(
+            target=_perform_update_download_and_restart,
+            args=(url, latest_v, release_notes),
+            daemon=True,
+        )
+        download_thread.start()
     else:
         logger.info("User declined update.")
 
@@ -396,7 +408,7 @@ def _run_remote_update_thread(repo_full_name, game_path):
         logger.exception(f"An unexpected error occurred in remote update thread: {e}")
         success = False
     finally:
-        schedule_gui_update(update_flag, success)
+        schedule_gui_update(update_flag, success, "REMOTE UPDATE")
         schedule_gui_update(set_buttons_state, "normal")
 
 
@@ -424,7 +436,7 @@ def _run_local_update_thread(source_dir_path, output_dir_path, enable_ini_data1,
         logger.exception(f"An unexpected error occurred in local update thread: {e}")
         success = False
     finally:
-        schedule_gui_update(update_flag, success)
+        schedule_gui_update(update_flag, success, "LOCAL UPDATE")
         schedule_gui_update(set_buttons_state, "normal")
 
 
@@ -438,7 +450,7 @@ def on_remote_update_click():
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
         logger.critical("Could not find RoTWK installation path. Update cannot continue.")
-        schedule_gui_update(flag_label.configure, text="Error: RoTWK Path Invalid", text_color="red")
+        update_operation_status("REMOTE UPDATE", "Invalid game path", "red")
         return
 
     # Save the confirmed/entered path
@@ -450,7 +462,7 @@ def on_remote_update_click():
     )
 
     set_buttons_state("disabled")
-    schedule_gui_update(flag_label.configure, text="Update running...", text_color="yellow")  # Indicate running
+    update_operation_status("REMOTE UPDATE", "Running...", "orange")
 
     repo_full_name = f"{REPO_OWNER}/{REPO_NAME}"  # Mod repo
     thread = threading.Thread(target=_run_remote_update_thread, args=(repo_full_name, rotwk_path), daemon=True)
@@ -466,13 +478,13 @@ def on_local_update_click():
     rotwk_path = rotwk_path_entry.get()
     if not rotwk_path or rotwk_path == "NOT FOUND!":
         logger.critical("Could not find RoTWK installation path. Update cannot continue.")
-        schedule_gui_update(flag_label.configure, text="Error: RoTWK installation path cannot be empty!", text_color="red")
+        update_operation_status("LOCAL UPDATE", "Game path is empty or invalid", "red")
         return
 
     source_content_path = local_path_entry.get()
     if not source_content_path or source_content_path == "Insert DEV Mod folder path here" or not os.path.isdir(source_content_path):
         logger.error("Local content path is empty or invalid. Update cannot proceed.")
-        schedule_gui_update(flag_label.configure, text="Error: Local path cannot be empty or is invalid!", text_color="red")
+        update_operation_status("LOCAL UPDATE", "Source path is empty or invalid", "red")
         return
 
     # Get the selected update steps
@@ -483,7 +495,7 @@ def on_local_update_click():
     # Check that at least one step is selected
     if not (enable_ini_data1 or enable_arts or enable_lang):
         logger.error("No update steps selected. Please select at least one step.")
-        schedule_gui_update(flag_label.configure, text="Error: Select at least one update step!", text_color="red")
+        update_operation_status("LOCAL UPDATE", "Select at least one build step", "red")
         return
 
     logger.info(f"Using local content path: {source_content_path}")
@@ -496,7 +508,7 @@ def on_local_update_click():
     )
 
     set_buttons_state("disabled")
-    schedule_gui_update(flag_label.configure, text="Update running...", text_color="yellow")  # Indicate running
+    update_operation_status("LOCAL UPDATE", "Running...", "orange")
 
     thread = threading.Thread(
         target=_run_local_update_thread,
@@ -737,11 +749,12 @@ def update_patch_version_display(game_dir_path):
 
 
 def update_4gb_patch_display(game_dir_path):
-    """Check both game binaries and update the game-control warning state."""
-    if not flag_label:
+    """Check admin and 4GB status, then update their separate indicators."""
+    if not flag_label or not four_gb_status_label:
         logger.debug("flag_label not ready for 4GB patch check.")
         return
 
+    admin_verified = is_admin()
     results = check_rotwk_4gb_patch(game_dir_path)
     launcher_status = results.get("lotrbfme2ep1.exe", "Unknown")
     engine_status = results.get("game.dat", "Unknown")
@@ -753,14 +766,16 @@ def update_4gb_patch_display(game_dir_path):
         else:
             logger.error("4GB patch check failed for %s: %s", filename, status)
 
-    if is_complete:
-        message = "Administrator privileges verified. | 4GB patch active."
-        color = ACCENT_GREEN if is_admin() else "red"
-    else:
-        message = f"WARNING: 4GB patch incomplete | .exe: {launcher_status} | game.dat: {engine_status}"
-        color = "orange"
+    admin_icon = "✓" if admin_verified else "✕"
+    admin_message = "Administrator privileges verified" if admin_verified else "Administrator privileges not verified"
+    admin_color = ACCENT_GREEN if admin_verified else "red"
 
-    schedule_gui_update(flag_label.configure, text=message, text_color=color)
+    patch_icon = "✓" if is_complete else "⚠"
+    patch_message = "4GB patch active" if is_complete else "4GB patch not fully active"
+    patch_color = ACCENT_GREEN if is_complete else "orange"
+
+    schedule_gui_update(flag_label.configure, text=f"{admin_icon}  {admin_message}", text_color=admin_color)
+    schedule_gui_update(four_gb_status_label.configure, text=f"{patch_icon}  {patch_message}", text_color=patch_color)
 
 
 def fetch_and_display_latest_mod_version():
@@ -808,18 +823,18 @@ def _run_remove_mod_thread(rotwk_path):
         if success:
             logger.info("Mod removal thread finished successfully.")
             # Schedule GUI updates from the thread
-            schedule_gui_update(flag_label.configure, text="Mod removed successfully!", text_color="green")
+            update_operation_status("REMOVE MOD", "Completed successfully", ACCENT_GREEN)
             schedule_gui_update(update_mod_version_display, rotwk_path)
             schedule_gui_update(windows_notify, "Mod Removed", f"The mod has been removed from {os.path.basename(rotwk_path)}.")
         else:
             logger.error("Mod removal thread failed (core function returned False). Check logs.")
-            schedule_gui_update(flag_label.configure, text="ERROR removing mod! See logs.", text_color="red")
+            update_operation_status("REMOVE MOD", "Failed - see the log below", "red")
             schedule_gui_update(messagebox.showerror, "Removal Error", "An error occurred while removing the mod files. Please check the logs.")
 
     except Exception as e:
         logger.exception(f"An unexpected error occurred in remove mod thread: {e}")
         success = False
-        schedule_gui_update(flag_label.configure, text="FATAL ERROR removing mod! See logs.", text_color="red")
+        update_operation_status("REMOVE MOD", "Unexpected error - see the log below", "red")
         schedule_gui_update(messagebox.showerror, "Removal Error", f"An unexpected error occurred: {e}")
     finally:
         schedule_gui_update(set_buttons_state, "normal")
@@ -838,7 +853,7 @@ def on_remove_mod_click():
     # 1. Validate Path
     if not rotwk_path or rotwk_path == "NOT FOUND!" or not os.path.isdir(rotwk_path):
         logger.error("Invalid RotWK path provided for removing mod.")
-        schedule_gui_update(flag_label.configure, text="Error: RoTWK Path Invalid", text_color="red")
+        update_operation_status("REMOVE MOD", "Invalid game path", "red")
         messagebox.showerror(
             "Removal Error",
             "The Rise of the Witch-king installation path is invalid or not set. Cannot remove mod.",
@@ -863,7 +878,7 @@ def on_remove_mod_click():
     # 4. Start Background Thread if Confirmed
     logger.info(f"User confirmed. Starting remove mod thread for: {rotwk_path}")
     set_buttons_state("disabled")
-    schedule_gui_update(flag_label.configure, text="Removing mod...", text_color="yellow")
+    update_operation_status("REMOVE MOD", "Running...", "orange")
 
     # Create and start the daemon thread
     thread = threading.Thread(target=_run_remove_mod_thread, args=(rotwk_path,), daemon=True)
@@ -952,15 +967,23 @@ def run_gui():
     global root, log_console, log_filter_var, flag_label, remote_update_button, local_update_button
     global launch_game_button, kill_game_button, launch_dev_mode_var, browse_button_remote, browse_button_local
     global rotwk_path_entry, local_path_entry
-    global latest_mod_available_label, mod_version_label, remove_mod_button, patch_version_label
+    global latest_mod_available_label, mod_version_label, remove_mod_button, patch_version_label, four_gb_status_label, operation_status_label
     global local_update_ini_data1_var, local_update_arts_var, local_update_lang_var
 
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("dark-blue")
 
     root = ctk.CTk()
-    root.resizable(False, False)
-    root.geometry(INITIAL_WINDOW_SIZE)
+    root.resizable(True, True)
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    minimum_width = min(1000, screen_width - 80)
+    minimum_height = min(820, screen_height - 100)
+    root.minsize(minimum_width, minimum_height)
+    requested_width, requested_height = (int(value) for value in INITIAL_WINDOW_SIZE.split("x"))
+    window_width = min(requested_width, screen_width - 80)
+    window_height = min(requested_height, screen_height - 100)
+    root.geometry(f"{window_width}x{window_height}")
     root.configure(fg_color=APP_SURFACE)
 
     try:
@@ -974,7 +997,7 @@ def run_gui():
         bg_image = ctk.CTkImage(
             light_image=Image.open(resource_path(BG_IMG_FILE_PATH)),
             dark_image=Image.open(resource_path(BG_IMG_FILE_PATH)),
-            size=(1000, 900),
+            size=(window_width, window_height),
         )
         game_ico = ctk.CTkImage(
             light_image=Image.open(resource_path(GAME_IMG_FILE_PATH)),
@@ -983,6 +1006,12 @@ def run_gui():
         )
         background_label = ctk.CTkLabel(root, image=bg_image, text="")
         background_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+        def resize_background(event):
+            if event.widget is root and event.width > 0 and event.height > 0:
+                bg_image.configure(size=(event.width, event.height))
+
+        root.bind("<Configure>", resize_background)
     except Exception as e:
         logger.error(f"Error loading GUI assets: {e}", exc_info=True)
         game_ico = None  # Ensure variable exists even on failure
@@ -991,7 +1020,7 @@ def run_gui():
     main_frame = ctk.CTkFrame(root, corner_radius=20, fg_color="transparent")
     main_frame.place(relx=0.5, rely=0.5, anchor=ctk.CENTER)
     main_frame.grid_columnconfigure(0, weight=1)
-    main_frame.grid_rowconfigure(7, weight=1)
+    main_frame.grid_rowconfigure(8, weight=1)
 
     # --- STATUS STRIP ---
     status_frame = ctk.CTkFrame(
@@ -1048,11 +1077,42 @@ def run_gui():
     )
     patch_version_label.grid(row=0, column=0, padx=12, pady=8, sticky="ew")
 
+    remote_heading = ctk.CTkLabel(main_frame, text="GET THE LATEST MOD", font=LABEL_FONT, text_color=TEXT_MUTED)
+    remote_heading.grid(row=1, column=0, padx=20, pady=(0, 0), sticky="w")
+
+    remote_update_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
+    remote_update_frame.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="ew")
+    remote_update_frame.grid_columnconfigure(0, weight=1)
+
+    remote_update_info = ctk.CTkLabel(
+        remote_update_frame,
+        text="Download and install the latest TROWMod release from GitHub.",
+        font=TEXT_FONT,
+        text_color=TEXT_SECONDARY,
+        anchor="w",
+    )
+    remote_update_info.grid(row=0, column=0, padx=14, pady=12, sticky="w")
+
+    remote_update_button = ctk.CTkButton(
+        remote_update_frame,
+        text="Download Latest Mod",
+        font=PRIMARY_BUTTON_FONT,
+        text_color=TEXT_PRIMARY,
+        command=on_remote_update_click,
+        fg_color=BUTTON_PRIMARY_BG,
+        hover_color=BUTTON_PRIMARY_HOVER,
+        border_color=BUTTON_PRIMARY_BORDER,
+        border_width=1,
+        width=210,
+        height=42,
+    )
+    remote_update_button.grid(row=0, column=1, padx=(10, 12), pady=8, sticky="e")
+
     rotwk_path_label = ctk.CTkLabel(main_frame, text="GAME INSTALLATION", font=LABEL_FONT, text_color=TEXT_MUTED)
-    rotwk_path_label.grid(row=1, column=0, padx=20, pady=(0, 0), sticky="w")
+    rotwk_path_label.grid(row=3, column=0, padx=20, pady=(0, 0), sticky="w")
 
     remote_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
-    remote_frame.grid(row=2, column=0, padx=20, pady=(5, 10), sticky="ew")
+    remote_frame.grid(row=4, column=0, padx=20, pady=(5, 10), sticky="ew")
     remote_frame.grid_columnconfigure(0, weight=1)  # Entry expands
 
     rotwk_path_entry = ctk.CTkEntry(remote_frame, font=TEXT_FONT, fg_color=INPUT_SURFACE, border_color=DIVIDER_COLOR)
@@ -1081,25 +1141,12 @@ def run_gui():
     )
     browse_button_remote.grid(row=0, column=1, padx=5, pady=10)
 
-    remote_update_button = ctk.CTkButton(
-        remote_frame,
-        text="Remote Update",
-        font=PRIMARY_BUTTON_FONT,
-        text_color=TEXT_PRIMARY,
-        command=on_remote_update_click,
-        fg_color=BUTTON_PRIMARY_BG,
-        hover_color=BUTTON_PRIMARY_HOVER,
-        border_color=BUTTON_PRIMARY_BORDER,
-        border_width=1,
-    )
-    remote_update_button.grid(row=0, column=2, padx=(5, 10), pady=10)
-
     # --- LOCAL UPDATE SECTION ---
     local_heading_label = ctk.CTkLabel(main_frame, text="LOCAL BUILD", font=LABEL_FONT, text_color=TEXT_MUTED)
-    local_heading_label.grid(row=3, column=0, padx=20, pady=(15, 5), sticky="w")
+    local_heading_label.grid(row=5, column=0, padx=20, pady=(15, 5), sticky="w")
 
     local_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
-    local_frame.grid(row=4, column=0, padx=20, pady=(5, 10), sticky="ew")
+    local_frame.grid(row=6, column=0, padx=20, pady=(5, 10), sticky="ew")
     local_frame.grid_columnconfigure(0, weight=1)  # Entry expands
 
     local_path_entry = ctk.CTkEntry(local_frame, font=TEXT_FONT, fg_color=INPUT_SURFACE, border_color=DIVIDER_COLOR)
@@ -1140,7 +1187,7 @@ def run_gui():
 
     # --- LOCAL UPDATE STEPS SELECTION (Row 4.5) ---
     steps_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
-    steps_frame.grid(row=5, column=0, padx=20, pady=(5, 10), sticky="ew")
+    steps_frame.grid(row=7, column=0, padx=20, pady=(5, 10), sticky="ew")
     steps_frame.grid_columnconfigure(0, weight=0)
     steps_frame.grid_columnconfigure(1, weight=0)
     steps_frame.grid_columnconfigure(2, weight=0)
@@ -1192,17 +1239,37 @@ def run_gui():
         border_color=DIVIDER_COLOR,
         corner_radius=10,
     )
-    flag_frame.grid(row=6, column=0, padx=20, pady=(10, 10), sticky="ew")
+    flag_frame.grid(row=8, column=0, padx=20, pady=(10, 10), sticky="ew")
     flag_frame.grid_columnconfigure(0, weight=1)
+    flag_frame.grid_columnconfigure(1, weight=1)
 
     is_admin_flag = is_admin()
-    flag_text = "Administrator privileges verified." if is_admin_flag else "ERROR! Please, run the software as admin."
-    flag_color = ACCENT_GREEN if is_admin_flag else "red"
     control_title = ctk.CTkLabel(flag_frame, text="GAME CONTROL", font=LABEL_FONT, text_color=TEXT_MUTED)
     control_title.grid(row=0, column=0, padx=16, pady=(10, 0), sticky="w")
 
-    flag_label = ctk.CTkLabel(flag_frame, text=flag_text, font=FLAG_FONT, text_color=flag_color)
-    flag_label.grid(row=1, column=0, padx=16, pady=(2, 8), sticky="w")
+    flag_label = ctk.CTkLabel(flag_frame, text="Checking administrator privileges...", font=FLAG_FONT, text_color="orange")
+    flag_label.grid(row=1, column=0, padx=16, pady=(2, 0), sticky="w")
+
+    four_gb_status_label = ctk.CTkLabel(flag_frame, text="Checking 4GB patch...", font=FLAG_FONT, text_color="orange")
+    four_gb_status_label.grid(row=2, column=0, padx=16, pady=(0, 8), sticky="w")
+
+    operation_status_frame = ctk.CTkFrame(
+        flag_frame,
+        fg_color=PANEL_RAISED,
+        border_width=1,
+        border_color=DIVIDER_COLOR,
+        corner_radius=8,
+    )
+    operation_status_frame.grid(row=0, column=1, rowspan=3, padx=(10, 16), pady=(10, 8), sticky="nsew")
+    operation_status_label = ctk.CTkLabel(
+        operation_status_frame,
+        text="OPERATION STATUS\nReady",
+        font=FLAG_FONT,
+        text_color=TEXT_MUTED,
+        justify="center",
+        anchor="center",
+    )
+    operation_status_label.pack(expand=True, fill="both", padx=14, pady=10)
 
     action_frame = ctk.CTkFrame(
         flag_frame,
@@ -1211,7 +1278,7 @@ def run_gui():
         border_color=DIVIDER_COLOR,
         corner_radius=8,
     )
-    action_frame.grid(row=2, column=0, padx=10, pady=(0, 8), sticky="ew")
+    action_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=(0, 8), sticky="ew")
     action_frame.grid_columnconfigure(0, weight=1)
     action_frame.grid_columnconfigure(1, weight=1)
 
@@ -1248,8 +1315,8 @@ def run_gui():
     kill_game_button.grid(row=0, column=1, padx=(4, 8), pady=8, sticky="ew")
 
     launch_dev_mode_var = ctk.BooleanVar(value=False)
-    diagnostic_frame = ctk.CTkFrame(flag_frame, fg_color="transparent")
-    diagnostic_frame.grid(row=3, column=0, padx=16, pady=(0, 10), sticky="w")
+    diagnostic_frame = ctk.CTkFrame(action_frame, fg_color="transparent")
+    diagnostic_frame.grid(row=1, column=0, columnspan=2, padx=12, pady=(0, 8), sticky="w")
     diagnostic_frame.grid_columnconfigure(0, weight=0)
     diagnostic_frame.grid_columnconfigure(1, weight=0)
 
@@ -1299,7 +1366,7 @@ def run_gui():
 
     # --- LOG CONSOLE ---
     log_frame = ctk.CTkFrame(main_frame, fg_color=PANEL_SURFACE, corner_radius=10)
-    log_frame.grid(row=7, column=0, padx=10, pady=(10, 10), sticky="nsew")
+    log_frame.grid(row=9, column=0, padx=10, pady=(10, 10), sticky="nsew")
     log_frame.grid_rowconfigure(2, weight=1)  # riga 2 ora (console spostata giù)
     log_frame.grid_columnconfigure(0, weight=1)
 

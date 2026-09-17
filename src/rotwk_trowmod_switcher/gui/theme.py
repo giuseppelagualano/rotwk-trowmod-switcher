@@ -1,6 +1,6 @@
 # --- GUI Settings ---
 APP_TITLE = "RoTWK TROWMod Switcher"
-INITIAL_WINDOW_SIZE = "1000x900"
+INITIAL_WINDOW_SIZE = "1100x980"
 ICON_FILE_PATH = "src/rotwk_trowmod_switcher/assets/app_icon.ico"
 BG_IMG_FILE_PATH = "src/rotwk_trowmod_switcher/assets/bg_ai_gen.jpeg"
 GAME_IMG_FILE_PATH = "src/rotwk_trowmod_switcher/assets/game_icon.png"
